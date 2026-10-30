@@ -4,8 +4,8 @@ Windows tray app that helps a non-native English speaker roleplay in World of Wa
 It only uses the clipboard, global hotkeys and its own windows. It never touches the game.
 See `CLAUDE.md` for the full spec and `docs/USER_GUIDE.md` for the player guide.
 
-Status: **Milestone 1 (skeleton)** — tray icon, single instance, Settings window with a
-write-only API key field, persisted settings. Translation and compose come in later milestones.
+Status: **Milestone 2 (API + incoming)** — Claude client, Input guard, `Ctrl+Alt+T` incoming
+translation, no-activate click-through overlay. Compose, split and polish come in later milestones.
 
 ## Prerequisites (Windows 10/11 x64)
 
@@ -30,6 +30,10 @@ The installer is written to `src-tauri/target/release/bundle/nsis/`.
 cd src-tauri && cargo test    # unit tests + the forbidden-API guard (tests/forbidden_apis.rs)
 npm run build                 # TypeScript type check + production frontend build
 ```
+
+Unit tests cover the Input guard (tag neutralizing, secret sniffing, limits, debounce), prompt
+building, and the API client against a local mock HTTP server (retry, error mapping,
+temperature fallback). Nothing in the tests calls the real API.
 
 `tests/forbidden_apis.rs` fails if any game-interaction identifier (input simulation, hooks,
 process access, window lookup) appears in `src-tauri/src`. Do not weaken it.

@@ -33,7 +33,9 @@ fn bundled_resources(app: &AppHandle) -> Option<PathBuf> {
     // `tauri dev` runs from target/debug; fall back to the repo copy.
     #[cfg(debug_assertions)]
     {
-        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("resources");
+        let p = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("resources");
         if p.is_dir() {
             return Some(p);
         }
@@ -79,8 +81,14 @@ mod tests {
 
         copy_missing(&src, &dst).unwrap();
 
-        assert_eq!(fs::read_to_string(dst.join("prompts/a.md")).unwrap(), "edited");
-        assert_eq!(fs::read_to_string(dst.join("prompts/b.md")).unwrap(), "default");
+        assert_eq!(
+            fs::read_to_string(dst.join("prompts/a.md")).unwrap(),
+            "edited"
+        );
+        assert_eq!(
+            fs::read_to_string(dst.join("prompts/b.md")).unwrap(),
+            "default"
+        );
         let _ = fs::remove_dir_all(&src);
         let _ = fs::remove_dir_all(&dst);
     }

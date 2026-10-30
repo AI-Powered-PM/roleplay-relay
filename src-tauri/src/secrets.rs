@@ -40,6 +40,15 @@ pub fn has_api_key() -> Result<bool, SecretError> {
     }
 }
 
+/// For the Rust API client only. Never exposed as a command.
+pub fn get_api_key() -> Result<Option<SecretString>, SecretError> {
+    match entry()?.get_password() {
+        Ok(k) => Ok(Some(SecretString::from(k))),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(_) => Err(SecretError::Store),
+    }
+}
+
 pub fn set_api_key(raw: String) -> Result<(), SecretError> {
     let key = validate(&raw)?;
     entry()?

@@ -1,0 +1,66 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.stage {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.stage.top {
+  justify-content: flex-start;
+}
+.stage.bottom {
+  justify-content: flex-end;
+}
+
+.panel {
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(214, 162, 74, 0.45);
+  border-left: 4px solid #d6a24a;
+  color: #f1e8d8;
+  line-height: 1.35;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+.original {
+  color: rgba(241, 232, 216, 0.55);
+  font-size: 0.85em;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.panel.busy {
+  border-left-color: #8a7a5c;
+}
+.panel.busy .text {
+  color: rgba(241, 232, 216, 0.7);
+  font-style: italic;
+}
+.panel.error {
+  border-color: rgba(224, 96, 80, 0.55);
+  border-left-color: #e06050;
+}
+.panel.error .text {
+  color: #ffb4a8;
+}
+.panel.info {
+  border-left-color: #8a7a5c;
+}

@@ -1,8 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod actions;
+mod claude;
 mod commands;
+mod context;
+mod guard;
+mod hotkeys;
 mod logging;
+mod overlay;
 mod paths;
+mod prompts;
 mod secrets;
 mod settings;
 
@@ -19,15 +26,14 @@ fn show_settings(app: &AppHandle) {
 }
 
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
-    // Wired in milestone 2, when the overlay exists.
-    let overlay = MenuItemBuilder::with_id("overlay", "Show/Hide overlay")
-        .enabled(false)
-        .build(app)?;
+    let overlay = MenuItemBuilder::with_id("overlay", "Show/Hide overlay").build(app)?;
     let default_char = CheckMenuItemBuilder::with_id("char-default", "default")
         .checked(true)
         .enabled(false)
         .build(app)?;
-    let characters = SubmenuBuilder::new(app, "Character").item(&default_char).build()?;
+    let characters = SubmenuBuilder::new(app, "Character")
+        .item(&default_char)
+        .build()?;
     let settings = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
@@ -44,6 +50,7 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "overlay" => overlay::toggle(app),
             "settings" => show_settings(app),
             "quit" => app.exit(0),
             _ => {}
@@ -63,6 +70,11 @@ fn main() {
         }))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(hotkeys::plugin())
+        .manage(actions::AppState::new())
+        .manage(overlay::OverlayState::default())
+        .manage(hotkeys::Registered::default())
         .invoke_handler(tauri::generate_handler![
             commands::has_api_key,
             commands::set_api_key,
@@ -75,8 +87,8 @@ fn main() {
             let handle = app.handle();
             let data = paths::data_dir(handle)?;
             std::fs::create_dir_all(&data)?;
-            if let Some(guard) = logging::init(&data.join("logs")) {
-                app.manage(guard);
+            if let Err(e) = logging::init(&data.join("logs")) {
+                eprintln!("logging disabled: {e}");
             }
             if let Err(e) = paths::ensure_layout(handle, &data) {
                 tracing::error!("could not prepare data folder: {e}");
@@ -86,6 +98,8 @@ fn main() {
                 let _ = settings::save(handle, &data, s);
             }
             build_tray(app)?;
+            overlay::init(handle);
+            hotkeys::register_all(handle);
             tracing::info!("started");
             Ok(())
         })

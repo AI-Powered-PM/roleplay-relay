@@ -44,5 +44,9 @@ fn no_forbidden_game_interaction_apis() {
             }
         }
     }
-    assert!(hits.is_empty(), "forbidden identifiers found:\n{}", hits.join("\n"));
+    assert!(
+        hits.is_empty(),
+        "forbidden identifiers found:\n{}",
+        hits.join("\n")
+    );
 }

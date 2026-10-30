@@ -41,7 +41,11 @@ pub struct ModeConfig {
 
 impl ModeConfig {
     fn new(model: &str, max_tokens: u32, temperature: f32) -> Self {
-        Self { model: model.into(), max_tokens, temperature: Some(temperature) }
+        Self {
+            model: model.into(),
+            max_tokens,
+            temperature: Some(temperature),
+        }
     }
 }
 
@@ -146,7 +150,8 @@ impl Settings {
 }
 
 fn open_store(app: &AppHandle, data_dir: &Path) -> Result<std::sync::Arc<Store<Wry>>, String> {
-    app.store(data_dir.join(STORE_FILE)).map_err(|e| e.to_string())
+    app.store(data_dir.join(STORE_FILE))
+        .map_err(|e| e.to_string())
 }
 
 /// Each top-level field is a key in settings.json; missing keys fall back to defaults.
@@ -195,7 +200,9 @@ mod tests {
 
     #[test]
     fn serializes_without_any_key_field() {
-        let json = serde_json::to_string(&Settings::default()).unwrap().to_lowercase();
+        let json = serde_json::to_string(&Settings::default())
+            .unwrap()
+            .to_lowercase();
         assert!(!json.contains("apikey") && !json.contains("api_key") && !json.contains("sk-ant"));
     }
 
