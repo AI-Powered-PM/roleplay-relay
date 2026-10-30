@@ -1,0 +1,17 @@
+use tauri_build::{AppManifest, Attributes};
+
+// Listing the app commands here makes Tauri generate an `allow-<command>` permission
+// for each one, so every window only gets the commands its capability names.
+const COMMANDS: &[&str] = &[
+    "has_api_key",
+    "set_api_key",
+    "clear_api_key",
+    "get_settings",
+    "save_settings",
+    "open_data_folder",
+];
+
+fn main() {
+    tauri_build::try_build(Attributes::new().app_manifest(AppManifest::new().commands(COMMANDS)))
+        .expect("failed to run tauri-build");
+}

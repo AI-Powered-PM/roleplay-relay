@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "compose-window",
+  "description": "Compose: event listening only for now. compose_submit, compose_cancel and get_compose_state are added with milestone 3.",
+  "windows": ["compose"],
+  "permissions": ["core:event:allow-listen"]
+}

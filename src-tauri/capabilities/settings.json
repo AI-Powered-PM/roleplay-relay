@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings-window",
+  "description": "Settings window: settings and API-key commands only. Folder opening is done by the Rust command open_data_folder (fixed sub-folders), so no opener or fs permission is granted to the WebView.",
+  "windows": ["settings"],
+  "permissions": [
+    "allow-has-api-key",
+    "allow-set-api-key",
+    "allow-clear-api-key",
+    "allow-get-settings",
+    "allow-save-settings",
+    "allow-open-data-folder"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay-window",
+  "description": "Overlay: may listen to events pushed from Rust; no commands.",
+  "windows": ["overlay"],
+  "permissions": ["core:event:allow-listen"]
+}
