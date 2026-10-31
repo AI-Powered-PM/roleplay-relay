@@ -111,9 +111,24 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
         .map_err(|e| e.to_string())?;
 
     // Incoming output is only displayed, so no strict parsing: show what came back.
-    let translation = reply.text.trim().to_owned();
+    let mut translation = reply.text.trim().to_owned();
     if translation.is_empty() {
         return Err(ApiError::BadReply.to_string());
+    }
+    if lang.has_foreign_script(&translation) {
+        // The model sometimes drops a stray CJK character into a sentence. Ask once more;
+        // if it is still there, remove it.
+        tracing::warn!(language = lang.code, "foreign script in translation; retrying once");
+        if let Ok(again) = state.client.complete(&key, &request).await {
+            let again = again.text.trim().to_owned();
+            if !again.is_empty() {
+                translation = again;
+            }
+        }
+        translation = lang.strip_foreign_script(&translation);
+        if translation.is_empty() {
+            return Err(ApiError::BadReply.to_string());
+        }
     }
 
     state
@@ -246,10 +261,24 @@ async fn generate(
         tracing::info!(input = %input, reply = %reply.text, "outgoing generated");
     }
     let marker = Marker::from_setting(&cfg.split_marker);
-    let processed = outguard::process_reply(mode, &reply.text, marker, lang).map_err(|u| Failure {
-        message: UNEXPECTED_REPLY.into(),
-        raw: Some(u.raw),
-    })?;
+    let mut processed =
+        outguard::process_reply(mode, &reply.text, marker, lang).map_err(|u| Failure {
+            message: UNEXPECTED_REPLY.into(),
+            raw: Some(u.raw),
+        })?;
+    if processed
+        .user_language_text()
+        .is_some_and(|t| lang.has_foreign_script(t))
+    {
+        // Stray foreign-script characters in the back-translation: ask once more, then clean up.
+        tracing::warn!(language = lang.code, "foreign script in back-translation; retrying once");
+        if let Ok(again) = state.client.complete(&key, &request).await {
+            if let Ok(p) = outguard::process_reply(mode, &again.text, marker, lang) {
+                processed = p;
+            }
+        }
+        processed.strip_foreign_script(lang);
+    }
 
     let draft = |en: String, back: Option<String>| Draft {
         en,

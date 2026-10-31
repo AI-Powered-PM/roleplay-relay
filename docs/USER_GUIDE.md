@@ -493,6 +493,11 @@ Exclusive fullscreen hides it. Press `Ctrl+Alt+O` to show it and keep it on scre
 `Save settings`. If you changed `incoming.md`, look for the yellow note under `Your language`
 (section 4).
 
+**A strange character (for example `長`) in a translation.** The model sometimes slips a
+character of another alphabet into your language. The app notices it, asks once more, and if the
+character is still there it removes it. You see no message. The English text that goes to your
+clipboard is not affected. If it happens often, try again or use a stronger model for `Incoming`.
+
 **Chinese text shows as empty boxes.** Install the Chinese language pack in Windows. The app
 uses the font `Microsoft YaHei`.
 

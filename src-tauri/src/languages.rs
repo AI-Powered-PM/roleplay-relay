@@ -38,6 +38,32 @@ pub struct Language {
 }
 
 impl Language {
+    /// A letter of a script this language never uses (Latin is always fine: names, game terms).
+    fn is_foreign_letter(&self, c: char) -> bool {
+        if !is_non_latin_letter(c) {
+            return false;
+        }
+        match &self.leftover {
+            Leftover::Chars(own_script) => !own_script(c),
+            Leftover::Latin { .. } => true,
+        }
+    }
+
+    /// True when text meant to be in this language holds letters of a foreign script, such as
+    /// a stray 長 in a Russian sentence (a model glitch).
+    pub fn has_foreign_script(&self, text: &str) -> bool {
+        text.chars().any(|c| self.is_foreign_letter(c))
+    }
+
+    /// `text` without the foreign-script letters, spaces tidied.
+    pub fn strip_foreign_script(&self, text: &str) -> String {
+        let kept: String = text.chars().filter(|c| !self.is_foreign_letter(*c)).collect();
+        kept.split(' ')
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     /// True when `text` (an English result) still contains this language.
     pub fn has_leftover(&self, text: &str) -> bool {
         match &self.leftover {
@@ -59,6 +85,17 @@ impl Language {
             }
         }
     }
+}
+
+/// A letter outside the Latin script. Accented Latin letters (`é`, `ñ`, `ß`) are Latin.
+pub fn is_non_latin_letter(c: char) -> bool {
+    c.is_alphabetic()
+        && !matches!(c,
+            '\u{0000}'..='\u{024F}'     // Basic Latin, Latin-1, Latin Extended-A/B
+            | '\u{1E00}'..='\u{1EFF}'   // Latin Extended Additional
+            | '\u{2C60}'..='\u{2C7F}'   // Latin Extended-C
+            | '\u{A720}'..='\u{A7FF}'   // Latin Extended-D
+            | '\u{FB00}'..='\u{FB06}')  // Latin ligatures
 }
 
 fn is_cyrillic(c: char) -> bool {
@@ -305,6 +342,22 @@ mod tests {
         assert!(es.has_leftover("ñ"));
         assert!(es.has_leftover("hola amigo, gracias"));
         assert!(resolve("ru").has_leftover("а"));
+    }
+
+    #[test]
+    fn foreign_script_in_user_language_text_is_found_and_stripped() {
+        let ru = resolve("ru");
+        let glitch = "Дорога長 длинна, и ты желанный гость";
+        assert!(ru.has_foreign_script(glitch));
+        assert_eq!(ru.strip_foreign_script(glitch), "Дорога длинна, и ты желанный гость");
+        assert_eq!(ru.strip_foreign_script("Дорога 長 длинна"), "Дорога длинна");
+        // Latin names and accents are fine in every language; the own script is fine too.
+        assert!(!ru.has_foreign_script("Thrall говорит: Мать-Земля, café"));
+        assert!(!resolve("zh-CN").has_foreign_script("雷霆崖 Thunder Bluff，你好"));
+        assert!(resolve("zh-CN").has_foreign_script("你好 привет"));
+        assert!(resolve("de").has_foreign_script("Hallo 長"));
+        assert!(!resolve("de").has_foreign_script("Grüße, Müller"));
+        assert!(resolve("es-MX").has_foreign_script("Hola мир"));
     }
 
     #[test]

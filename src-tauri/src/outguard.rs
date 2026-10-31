@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use crate::languages::Language;
+use crate::languages::{is_non_latin_letter, Language};
 use crate::parse::{self, Tagged, Unexpected};
 use crate::prompts::Mode;
 use crate::split::{self, Marker};
@@ -45,6 +45,29 @@ pub enum Processed {
         back: Option<String>,
         block: Block,
     },
+}
+
+impl Processed {
+    /// The part of the reply that is written in the user's language (back-translation or the
+    /// refusal reason). It is only displayed, never sent.
+    pub fn user_language_text(&self) -> Option<&str> {
+        match self {
+            Processed::Ok { back, .. } | Processed::Blocked { back, .. } => back.as_deref(),
+            Processed::Declined { reason } => Some(reason),
+        }
+    }
+
+    /// Drop foreign-script letters from [`Self::user_language_text`].
+    pub fn strip_foreign_script(&mut self, lang: &Language) {
+        match self {
+            Processed::Ok { back, .. } | Processed::Blocked { back, .. } => {
+                if let Some(b) = back {
+                    *b = lang.strip_foreign_script(b);
+                }
+            }
+            Processed::Declined { reason } => *reason = lang.strip_foreign_script(reason),
+        }
+    }
 }
 
 /// Parse a raw reply for `mode`, sanitize it and apply the block rules.
@@ -118,16 +141,6 @@ fn url_regex() -> &'static Regex {
     })
 }
 
-/// A letter outside the Latin script. Accented Latin letters (`é`, `ñ`, `ß`) are Latin.
-fn is_non_latin_letter(c: char) -> bool {
-    c.is_alphabetic()
-        && !matches!(c,
-            '\u{0000}'..='\u{024F}'     // Basic Latin, Latin-1, Latin Extended-A/B
-            | '\u{1E00}'..='\u{1EFF}'   // Latin Extended Additional
-            | '\u{2C60}'..='\u{2C7F}'   // Latin Extended-C
-            | '\u{A720}'..='\u{A7FF}'   // Latin Extended-D
-            | '\u{FB00}'..='\u{FB06}')  // Latin ligatures
-}
 
 const META_PHRASES: &[&str] = &[
     "as an ai",
@@ -332,6 +345,22 @@ mod tests {
                 assert_eq!(check_in(lang.code, line), Ok(()), "{}: {line}", lang.code);
             }
         }
+    }
+
+    #[test]
+    fn foreign_letters_in_the_back_translation_are_found_and_stripped() {
+        let mut p = process_reply(
+            Mode::Direct,
+            "<en>The road is long.</en><back>Дорога長 длинна.</back>",
+        )
+        .unwrap();
+        assert!(ru().has_foreign_script(p.user_language_text().unwrap()));
+        p.strip_foreign_script(ru());
+        assert_eq!(p.user_language_text(), Some("Дорога длинна."));
+        // The English text is untouched, and a reply without a back-translation has nothing to check.
+        assert!(matches!(&p, Processed::Ok { en, .. } if en == "The road is long."));
+        let g = process_reply(Mode::Grammar, "The road is long.").unwrap();
+        assert_eq!(g.user_language_text(), None);
     }
 
     #[test]
