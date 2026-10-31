@@ -1,11 +1,12 @@
 //! Commands callable from the WebView. Keep this list in sync with build.rs and capabilities/.
 
 use tauri::AppHandle;
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::actions::{self, Failure, SubmitResult};
 use crate::prompts::Mode;
-use crate::{compose, paths, secrets, settings};
+use crate::{compose, hotkeys, paths, secrets, settings};
 
 #[tauri::command]
 pub fn has_api_key() -> Result<bool, String> {
@@ -31,9 +32,34 @@ pub fn get_settings(app: AppHandle) -> Result<settings::Settings, String> {
     settings::load(&app, &paths::data_dir(&app)?)
 }
 
+/// Saves, then re-registers the hotkeys so changes apply without a restart.
+/// Returns the per-hotkey outcome for the red marks in Settings.
 #[tauri::command]
-pub fn save_settings(app: AppHandle, settings: settings::Settings) -> Result<(), String> {
-    settings::save(&app, &paths::data_dir(&app)?, settings)
+pub async fn save_settings(
+    app: AppHandle,
+    settings: settings::Settings,
+) -> Result<Vec<hotkeys::HotkeyStatus>, String> {
+    let dir = paths::data_dir(&app)?;
+    let keys = settings.hotkeys.clone();
+    settings::save(&app, &dir, settings)?;
+    Ok(hotkeys::apply(&app, &keys, true))
+}
+
+#[tauri::command]
+pub fn get_hotkey_status(app: AppHandle) -> Vec<hotkeys::HotkeyStatus> {
+    hotkeys::status(&app)
+}
+
+#[tauri::command]
+pub fn get_autostart(app: AppHandle) -> Result<bool, String> {
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let launch = app.autolaunch();
+    let result = if enabled { launch.enable() } else { launch.disable() };
+    result.map_err(|e| e.to_string())
 }
 
 /// Opens one of three fixed sub-folders of the data directory. The WebView cannot pick a path.

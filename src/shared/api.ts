@@ -1,12 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ComposeInfo, OutgoingMode, Settings, SubmitResult } from "./types";
+import type { ComposeInfo, HotkeyStatus, OutgoingMode, Settings, SubmitResult } from "./types";
 
 export const hasApiKey = () => invoke<boolean>("has_api_key");
 export const setApiKey = (key: string) => invoke<void>("set_api_key", { key });
 export const clearApiKey = () => invoke<void>("clear_api_key");
 export const getSettings = () => invoke<Settings>("get_settings");
 export const saveSettings = (settings: Settings) =>
-  invoke<void>("save_settings", { settings });
+  invoke<HotkeyStatus[]>("save_settings", { settings });
+export const getHotkeyStatus = () => invoke<HotkeyStatus[]>("get_hotkey_status");
+export const getAutostart = () => invoke<boolean>("get_autostart");
+export const setAutostart = (enabled: boolean) => invoke<void>("set_autostart", { enabled });
 export const openDataFolder = (sub: "prompts" | "characters" | "logs") =>
   invoke<void>("open_data_folder", { sub });
 

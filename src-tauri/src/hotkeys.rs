@@ -7,7 +7,10 @@ use std::time::Instant;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::overlay::{self, Kind};
+use tauri_plugin_notification::NotificationExt;
+
+use crate::overlay;
+use crate::settings::Hotkeys;
 use crate::{actions, compose, paths, settings};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,7 +23,10 @@ enum Action {
 }
 
 #[derive(Default)]
-pub struct Registered(Mutex<Vec<(Shortcut, Action)>>);
+pub struct Registered {
+    map: Mutex<Vec<(Shortcut, Action)>>,
+    status: Mutex<Vec<HotkeyStatus>>,
+}
 
 pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
     tauri_plugin_global_shortcut::Builder::new()
@@ -31,7 +37,7 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
             }
             let action = app
                 .state::<Registered>()
-                .0
+                .map
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .iter()
@@ -61,58 +67,112 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
         .build()
 }
 
-/// Register the configured hotkeys. A failure (combo taken by another app,
-/// or unparseable) is logged and shown in the overlay; the rest still register.
+/// Result of registering one hotkey; shown in Settings (red when `ok` is false).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HotkeyStatus {
+    /// Field name in `Hotkeys` (`translate`, `nextPart`, ...).
+    pub action: String,
+    pub ok: bool,
+    pub error: Option<String>,
+}
+
+fn try_register(app: &AppHandle, text: &str, taken: &[Shortcut]) -> Result<Shortcut, String> {
+    let shortcut = text
+        .parse::<Shortcut>()
+        .map_err(|_| "Not a valid key combination".to_string())?;
+    if shortcut.mods.is_empty() {
+        return Err("Needs at least one modifier (Ctrl, Alt, Shift)".into());
+    }
+    if taken.contains(&shortcut) {
+        return Err("Same as another hotkey".into());
+    }
+    app.global_shortcut().register(shortcut).map_err(|e| {
+        tracing::warn!("hotkey {text} not registered: {e}");
+        "Used by another app".to_string()
+    })?;
+    Ok(shortcut)
+}
+
+/// Drop every registered hotkey and register `keys` from scratch. A failure does not stop the
+/// others. Failures are returned, logged, and (when `notify`) shown as a tray notification.
+pub fn apply(app: &AppHandle, keys: &Hotkeys, notify: bool) -> Vec<HotkeyStatus> {
+    let wanted = [
+        ("translate", &keys.translate, Action::Translate),
+        ("compose", &keys.compose, Action::Compose),
+        ("quick", &keys.quick, Action::Quick),
+        ("nextPart", &keys.next_part, Action::NextPart),
+        ("overlayToggle", &keys.overlay_toggle, Action::ToggleOverlay),
+    ];
+    let _ = app.global_shortcut().unregister_all();
+    let state = app.state::<Registered>();
+    let mut active: Vec<(Shortcut, Action)> = Vec::new();
+    let mut statuses = Vec::new();
+    let mut failed = Vec::new();
+    for (name, text, action) in wanted {
+        let taken: Vec<Shortcut> = active.iter().map(|(s, _)| *s).collect();
+        match try_register(app, text, &taken) {
+            Ok(s) => {
+                tracing::info!("hotkey {text} registered");
+                active.push((s, action));
+                statuses.push(HotkeyStatus { action: name.into(), ok: true, error: None });
+            }
+            Err(e) => {
+                failed.push(text.clone());
+                statuses.push(HotkeyStatus { action: name.into(), ok: false, error: Some(e) });
+            }
+        }
+    }
+    *state.map.lock().unwrap_or_else(|e| e.into_inner()) = active;
+    *state.status.lock().unwrap_or_else(|e| e.into_inner()) = statuses.clone();
+    if notify && !failed.is_empty() {
+        let app = app.clone();
+        let body = format!("Hotkey not available: {}", failed.join(", "));
+        // At startup this runs inside `setup`, before the event loop is up; show it a moment later.
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let _ = app
+                .notification()
+                .builder()
+                .title("WoW Chat Helper")
+                .body(body)
+                .show();
+        });
+    }
+    statuses
+}
+
 pub fn register_all(app: &AppHandle) {
     let cfg = paths::data_dir(app)
         .and_then(|d| settings::load(app, &d))
         .unwrap_or_default();
-    let wanted = [
-        (cfg.hotkeys.translate, Action::Translate),
-        (cfg.hotkeys.compose, Action::Compose),
-        (cfg.hotkeys.quick, Action::Quick),
-        (cfg.hotkeys.next_part, Action::NextPart),
-        (cfg.hotkeys.overlay_toggle, Action::ToggleOverlay),
-    ];
+    apply(app, &cfg.hotkeys, true);
+}
 
-    let registered = app.state::<Registered>();
-    let mut failures = Vec::new();
-    for (text, action) in wanted {
-        let outcome = text
-            .parse::<Shortcut>()
-            .map_err(|e| e.to_string())
-            .and_then(|s| {
-                app.global_shortcut()
-                    .register(s)
-                    .map(|_| s)
-                    .map_err(|e| e.to_string())
-            });
-        match outcome {
-            Ok(shortcut) => {
-                tracing::info!("hotkey {text} registered");
-                registered
-                    .0
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .push((shortcut, action));
-            }
-            Err(e) => {
-                tracing::warn!("hotkey {text} not registered: {e}");
-                failures.push(text);
-            }
+pub fn status(app: &AppHandle) -> Vec<HotkeyStatus> {
+    app.state::<Registered>()
+        .status
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_hotkeys_parse_with_modifiers() {
+        let k = Hotkeys::default();
+        for t in [&k.translate, &k.compose, &k.quick, &k.next_part, &k.overlay_toggle] {
+            let s: Shortcut = t.parse().unwrap();
+            assert!(!s.mods.is_empty());
         }
     }
-    if !failures.is_empty() {
-        // `register_all` runs inside `setup`, before the event loop is up. Touching windows
-        // from here can block, so the message is shown from a task a moment later.
-        let app = app.clone();
-        let message = format!(
-            "Hotkey not available (used by another app?): {}",
-            failures.join(", ")
-        );
-        tauri::async_runtime::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            overlay::push(&app, Kind::Error, None, &message);
-        });
+
+    #[test]
+    fn bare_key_has_no_modifier() {
+        let s: Shortcut = "T".parse().unwrap();
+        assert!(s.mods.is_empty());
     }
 }

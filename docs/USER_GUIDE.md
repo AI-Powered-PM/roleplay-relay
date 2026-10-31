@@ -3,10 +3,8 @@
 This guide is for players. It uses short sentences. Names of buttons and messages are written
 in `code style` exactly as they appear on screen.
 
-> Status: this guide covers translating incoming chat (`Ctrl+Alt+T`), the overlay, and writing
-> your own messages (compose window `Ctrl+Alt+R` and quick mode `Ctrl+Alt+E`).
-> Long messages (more than 255 characters) and `Ctrl+Alt+N` come later. Sections that are not
-> ready yet say so.
+> This guide covers the whole app: translating chat, writing your messages, long messages,
+> the overlay, Settings, errors, troubleshooting and costs.
 
 ## 1. What it is and what it never does
 
@@ -40,7 +38,9 @@ You are responsible for every line you send. Always read the text before you pre
 4. Start the app only once. If you start it again, it just opens `Settings`.
 5. Closing the Settings window does not close the app. Use `Quit` in the tray menu.
 
-Start with Windows: this option is not available yet.
+Start with Windows: open `Settings` and tick `Start with Windows` in the `General` section.
+The app then starts hidden in the tray every time you log in. Untick it to turn it off. If you
+see an error under the box, restart the app and try again.
 
 ## 3. API key
 
@@ -78,11 +78,9 @@ or contains spaces. Copy the key again, without extra text.
 If you see `Could not access Windows Credential Manager`, restart the app. If it
 continues, restart Windows.
 
-Settings you can already change in the Settings window: overlay `Font size`, `Opacity`,
-`Auto-hide (seconds)`, and `Log chat text (debugLogChat)`. Click `Save settings`
-(you see `Settings saved`). The overlay is described in section 5.
-The buttons `Open prompts folder`, `Open characters folder` and `Open logs folder`
-open the matching folder in `%APPDATA%\WowChatHelper\`.
+All other fields in `Settings` are described in section 7. The buttons `Open prompts folder`,
+`Open characters folder` and `Open logs folder` open the matching folder in
+`%APPDATA%\WowChatHelper\`.
 
 ## 4. Game setup
 
@@ -251,7 +249,7 @@ still blocked by the safety check (section 9).
 - The overlay never takes focus and the mouse goes through it. You can keep playing.
 - `Ctrl+Alt+O` (or tray icon → `Show/Hide overlay`) shows it and keeps it on screen.
   It shows the last result, or `Nothing to show yet`. Press `Ctrl+Alt+O` again to hide it.
-  A full history list comes in a later version.
+  It shows only the last result, not a list of older ones.
 - Change corner, size and look in `Settings` (see section 7).
 
 ## 6. Hotkey cheat sheet
@@ -264,26 +262,94 @@ still blocked by the safety check (section 9).
 | `Ctrl+Alt+N` | Copy the next part of a long message | Clipboard (that part) and overlay (all parts, current one highlighted) |
 | `Ctrl+Alt+O` | Show or hide the overlay | Overlay |
 
-If a hotkey is already used by another app, the overlay shows
-`Hotkey not available (used by another app?)` with the key name. Close the other app or
-change the key (the hotkey editor comes in a later version).
+You can change every hotkey in `Settings` (section 7). If a hotkey is already used by another
+app, Windows shows a notification `WoW Chat Helper` with the text
+`Hotkey not available: Ctrl+Alt+T` (your key name), and the field is red in `Settings`.
+Close the other app or choose another key.
 
 ## 7. Settings
 
-The full field-by-field list comes in a later version. These fields exist now (`Settings`
-window, button `Save settings`):
+Open the tray icon → `Settings`. Change what you want and click `Save settings`. You see
+`Settings saved`. Hotkeys, models and overlay values work at once. No restart is needed.
+The API key and `Start with Windows` work on their own; they do not need `Save settings`.
 
 | Field | What it does | Default | When to change it |
 |---|---|---|---|
-| `Font size` | Text size in the overlay. | 16 | Make it bigger if it is hard to read. |
-| `Opacity` | How see-through the overlay is. | 0.82 | Lower it to see the game behind. |
-| `Auto-hide (seconds)` | The overlay hides itself after this time. | 12 | Raise it if you read slowly. |
+| `Start with Windows` (`General`) | Starts the app in the tray when you log in to Windows. | off | Turn on if you use the app every day. |
+| `Translate clipboard` | Hotkey for translating a copied chat line. | `Ctrl+Alt+T` | When another app uses this key. |
+| `Compose reply` | Hotkey for the compose window. | `Ctrl+Alt+R` | Same. |
+| `Quick clipboard mode` | Hotkey for quick mode. | `Ctrl+Alt+E` | Same. |
+| `Copy next part` | Hotkey for the next part of a long message. | `Ctrl+Alt+N` | Same. |
+| `Show/Hide overlay` | Hotkey for the overlay. | `Ctrl+Alt+O` | Same. |
+| `Incoming`, `Direct`, `RP`, `Grammar` rows in `Models` | Model name, `Max tokens` (the longest answer allowed) and `Temperature` (0 = careful, 1 = more creative; empty = model default) for each mode. | See section 11 | Change a model if you want a cheaper or stronger one. Use only real model names from your Console. |
+| `Position` | Screen corner of the overlay: `Top right`, `Top left`, `Bottom right`, `Bottom left`. | `Top right` | Move it away from your chat or action bars. |
+| `Width` | Overlay width in pixels (240–900). | 420 | Wider = fewer lines. |
+| `Font size` | Text size in the overlay (12–32). | 16 | Bigger if it is hard to read. |
+| `Opacity` | How see-through the overlay is (0.2–1). | 0.82 | Lower it to see the game behind. |
+| `Auto-hide (seconds)` | The overlay hides itself after this time (2–120). | 12 | Raise it if you read slowly. |
 | `Split marker` | How the parts of a long message are labelled: `(n/m)`, `…` or `none`. | `(n/m)` | Use `none` if you do not want labels in the chat. |
-| `Log chat text (debugLogChat)` | Writes chat text to the log file. | off | Only when you look for a problem. |
+| `Log chat text (debugLogChat)` | Writes chat text to the log file. | off | Only when you look for a problem. Turn it off again. |
+
+**Change a hotkey.** Click the hotkey field. Press the new combination (for example
+`Ctrl+Shift+T`). The field shows it. Use at least one of Ctrl, Alt, Shift. Click `Save settings`.
+`Reset` puts the default back (still click `Save settings`). Use letters, digits, `F1`–`F24`,
+`Space`, arrow keys, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`.
+
+A hotkey that does not work is **red**, with the reason under it:
+
+| Text under the field | What it means |
+|---|---|
+| `Same as another hotkey` | Two actions use the same keys. Change one. |
+| `Used by another app` | Another program owns these keys. Close it or choose other keys. |
+| `Needs at least one modifier (Ctrl, Alt, Shift)` | A single key like `T` would break your typing. Add Ctrl or Alt. |
+| `Not a valid key combination` | The app could not read the text. Click `Reset`. |
+
+After saving you may also see `Settings saved — some hotkeys could not be registered`. The other
+hotkeys still work.
+
+`Reset models` puts the four model rows back to the defaults (click `Save settings` after).
+Wrong values are repaired when you save (for example an empty model name or `Max tokens` of 999999).
 
 ## 8. Character, glossary and prompts
 
-_Coming in a later milestone._
+All your files are in `%APPDATA%\WowChatHelper\` (open the sub-folders with `Open prompts folder`,
+`Open characters folder`, `Open logs folder` in `Settings`):
+
+```
+%APPDATA%\WowChatHelper\
+├─ settings.json            your settings (no API key inside)
+├─ prompts\                 incoming.md, direct.md, rp.md, grammar.md
+├─ characters\default\     persona.md, glossary.md
+└─ logs\                    app.log (and app.1.log … app.4.log)
+```
+
+On first start the app copies the default files here. It never overwrites a file you changed.
+
+**Edits apply on the next request.** No restart. Save the file in Notepad, then use the hotkey.
+
+**`persona.md` — who your character is.** `RP` and `Direct` use it. Fill the lines in. Short
+example:
+
+```
+Name: Bloodhorn
+Race / class: Tauren shaman, Horde
+Personality: patient, curious about other peoples, quiet humor
+Speech style:
+- Calm, short, plain sentences.
+- Says "Earth Mother guide you" as a greeting.
+Never says: boasts, mocks the spirits.
+```
+
+**`glossary.md` — names and terms.** One term per line, like `Thunder Bluff — Громовой Утёс`. The
+app keeps these names as written. Add the names of your guild, your friends and your places.
+
+**Change a prompt.** Open the prompt file for the mode (`direct.md`, `rp.md`, `grammar.md`,
+`incoming.md`) and edit the instructions. Keep the words `{{persona}}` and `{{glossary}}` where
+they are. Keep the reply format that the file asks for (`<en>` and `<back>` tags for `Direct`
+and `RP`). If you break the format you will see `Unexpected reply — nothing copied`.
+
+**Restore a default.** Close nothing. Delete the file. The app makes it again the next time it
+starts.
 
 ## 9. Error and block messages
 
@@ -322,7 +388,9 @@ in red under the text box in the compose window.
 | `Could not write to the clipboard` | Another program holds the Windows clipboard. | Try again in a moment. |
 | `Nothing to copy` | You clicked `Copy anyway` but the blocked text is gone (for example you pressed `Esc` first). | Send your message again. |
 | `Could not access Windows Credential Manager` | Windows did not give the key to the app. | Restart the app. If it continues, restart Windows. |
-| `Hotkey not available (used by another app?)` | Another app uses this key combination. | Close that app. |
+| `Hotkey not available: Ctrl+Alt+T` (Windows notification; your key name) | Another app uses this key combination, or two hotkeys are the same. | Close the other app or change the key in `Settings` (section 7). |
+| `Settings saved — some hotkeys could not be registered` | You saved, but at least one hotkey failed. The field is red. | Read the red text under it (section 7). |
+| `Something went wrong` | A `Settings` action failed without a reason. | Try again. If it repeats, send `logs\app.log`. |
 
 **Blocked replies** (when you write your own text). The answer failed the safety check, so
 nothing is copied. In compose you see the text, the reason, and `Copy anyway`. In quick mode
@@ -345,8 +413,9 @@ window that was in front when you pressed `Ctrl+Alt+R`. If the game does not rea
 keyboard, click once in the game window. Use borderless (windowed fullscreen) mode (section 4).
 If it keeps happening, send `logs\app.log` and say which window mode you use.
 
-**The hotkey does nothing.** Look for `Hotkey not available…` (press `Ctrl+Alt+O` and check).
-Another app may use the same keys. Also check that the app is running (tray icon).
+**The hotkey does nothing.** Open `Settings` and look for a red hotkey field. Another app may use
+the same keys. Choose another combination (section 7). Also check that the app is running (tray
+icon).
 
 **I do not see the overlay over the game.** Use borderless / windowed fullscreen (section 4).
 Exclusive fullscreen hides it. Press `Ctrl+Alt+O` to show it and keep it on screen.
@@ -354,11 +423,36 @@ Exclusive fullscreen hides it. Press `Ctrl+Alt+O` to show it and keep it on scre
 **The overlay says `Clipboard is empty`.** The copy did not work. Check chat copy (section 4).
 Try pasting into Notepad to see what you copied.
 
-**Logs.** The log file is in `%APPDATA%\WowChatHelper\logs\` (file name starts with `app`,
-button `Open logs folder` in `Settings`). It has errors, timings and token counts. It does
+**Logs.** The log file is `%APPDATA%\WowChatHelper\logs\app.log` (button `Open logs folder` in
+`Settings`). When it reaches 1 MB it becomes `app.1.log`, and so on; the app keeps 5 files. It has
+errors, timings and token counts. It does
 **not** have your API key or your chat text (unless you turn on `Log chat text (debugLogChat)`).
 When you ask for help, send the last lines of this file and the message you saw.
 
 ## 11. Costs
 
-_Coming in a later milestone._
+You pay Anthropic for what the app sends. Prices below are per 1 million tokens (a token is
+about 3–4 English letters; Russian uses more). They are the public prices when this guide was
+written. Check the Anthropic pricing page for current prices.
+
+| Mode | Default model | Input | Output | `Max tokens` | `Temperature` |
+|---|---|---|---|---|---|
+| `Incoming` (`Ctrl+Alt+T`) | `claude-haiku-5-5` | $0.10 | $0.50 | 800 | 0.2 |
+| `Direct` | `claude-sonnet-5-5` | $2.00 | $10.00 | 800 | 0.3 |
+| `RP` | `claude-sonnet-5-5` | $2.00 | $10.00 | 800 | 0.7 |
+| `Grammar` | `claude-haiku-5-5` | $0.10 | $0.50 | 400 | 0 |
+
+**Rough cost of one message.** One request sends about 1000–1500 tokens (the prompt, your
+character, the last lines of chat, your text) and gets back about 100–200 tokens.
+
+- `Incoming` and `Grammar` (Haiku): about **$0.0002** — five hundred messages cost about 10 cents.
+- `Direct` and `RP` (Sonnet): about **$0.005** — about half a cent; two hundred messages cost
+  about one dollar.
+
+These are estimates. If a model thinks before it answers, the answer can cost more. To spend
+less, use the Haiku model in `Direct` or `RP` (`Models` section in `Settings`), at some loss of
+quality.
+
+**See the real numbers.** The Anthropic Console (<https://console.anthropic.com>) → Usage and
+Cost shows tokens and money by day. `logs\app.log` has one line per request with the model, time
+in milliseconds and input/output tokens.

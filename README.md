@@ -4,8 +4,8 @@ Windows tray app that helps a non-native English speaker roleplay in World of Wa
 It only uses the clipboard, global hotkeys and its own windows. It never touches the game.
 See `CLAUDE.md` for the full spec and `docs/USER_GUIDE.md` for the player guide.
 
-Status: **Milestone 2 (API + incoming)** — Claude client, Input guard, `Ctrl+Alt+T` incoming
-translation, no-activate click-through overlay. Compose, split and polish come in later milestones.
+Status: **Milestone 5 (Polish)** — all MVP flows, live-configurable hotkeys, autostart, per-mode
+model settings, size-rotating logs, NSIS installer.
 
 ## Prerequisites (Windows 10/11 x64)
 
@@ -22,7 +22,8 @@ npm run tauri dev       # development run; the app starts hidden in the tray
 npm run tauri build     # release build + NSIS installer
 ```
 
-The installer is written to `src-tauri/target/release/bundle/nsis/`.
+The installer is written to `src-tauri/target/release/bundle/nsis/` (`WoW Chat Helper_0.1.0_x64-setup.exe`).
+The release build has devtools off and starts hidden in the tray.
 
 ## Tests
 
@@ -31,7 +32,7 @@ cd src-tauri && cargo test    # unit tests + the forbidden-API guard (tests/forb
 npm run build                 # TypeScript type check + production frontend build
 ```
 
-Unit tests cover the Input guard (tag neutralizing, secret sniffing, limits, debounce), prompt
+Unit tests cover the Input guard, Output guard, splitter, settings repair, log rotation, hotkey parsing (tag neutralizing, secret sniffing, limits, debounce), prompt
 building, and the API client against a local mock HTTP server (retry, error mapping,
 temperature fallback). Nothing in the tests calls the real API.
 

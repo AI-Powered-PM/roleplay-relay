@@ -40,3 +40,9 @@ export type SubmitResult =
   | { kind: "ignored" }
   | { kind: "declined"; reason: string }
   | { kind: "blocked"; en: string; back: string | null; reason: string };
+
+export interface HotkeyStatus {
+  action: string;
+  ok: boolean;
+  error: string | null;
+}

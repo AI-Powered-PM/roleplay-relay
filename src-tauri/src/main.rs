@@ -75,6 +75,11 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(hotkeys::plugin())
         .manage(actions::AppState::new())
         .manage(overlay::OverlayState::default())
@@ -87,6 +92,9 @@ fn main() {
             commands::get_settings,
             commands::save_settings,
             commands::open_data_folder,
+            commands::get_hotkey_status,
+            commands::get_autostart,
+            commands::set_autostart,
             commands::get_compose_state,
             commands::compose_submit,
             commands::compose_copy_anyway,

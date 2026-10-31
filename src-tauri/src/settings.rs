@@ -42,6 +42,26 @@ pub struct ModeConfig {
 }
 
 impl ModeConfig {
+    /// Repair what the Settings form could send: blank/odd model names, silly token counts,
+    /// out-of-range or non-finite temperature.
+    fn sanitize(&mut self, default: &ModeConfig) {
+        self.model = self.model.trim().to_string();
+        let ok = !self.model.is_empty()
+            && self.model.len() <= 100
+            && self
+                .model
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':'));
+        if !ok {
+            self.model = default.model.clone();
+        }
+        self.max_tokens = self.max_tokens.clamp(50, 4000);
+        self.temperature = match self.temperature {
+            Some(t) if t.is_finite() => Some(t.clamp(0.0, 1.0)),
+            _ => None,
+        };
+    }
+
     fn new(model: &str, max_tokens: u32, temperature: f32) -> Self {
         Self {
             model: model.into(),
@@ -121,6 +141,20 @@ impl Settings {
     /// Clamp values the UI could send out of range, and reject unknown enum-like strings.
     pub fn sanitized(mut self) -> Self {
         let d = OverlaySettings::default();
+        let dm = Modes::default();
+        self.modes.incoming.sanitize(&dm.incoming);
+        self.modes.direct.sanitize(&dm.direct);
+        self.modes.rp.sanitize(&dm.rp);
+        self.modes.grammar.sanitize(&dm.grammar);
+        for k in [
+            &mut self.hotkeys.translate,
+            &mut self.hotkeys.compose,
+            &mut self.hotkeys.quick,
+            &mut self.hotkeys.next_part,
+            &mut self.hotkeys.overlay_toggle,
+        ] {
+            *k = k.trim().to_string();
+        }
         self.overlay.font_size = self.overlay.font_size.clamp(12, 32);
         self.overlay.width = self.overlay.width.clamp(240, 900);
         self.overlay.auto_hide_seconds = self.overlay.auto_hide_seconds.clamp(2, 120);
@@ -245,5 +279,21 @@ mod tests {
         assert_eq!(s.overlay.position, "top-right");
         assert_eq!(s.split_marker, "(n/m)");
         assert_eq!(s.active_character, "default");
+    }
+
+    #[test]
+    fn sanitize_repairs_mode_config() {
+        let mut s = Settings::default();
+        s.modes.rp.model = "  ".into();
+        s.modes.rp.max_tokens = 999_999;
+        s.modes.rp.temperature = Some(5.0);
+        s.modes.grammar.model = "bad model!".into();
+        s.modes.grammar.temperature = Some(f32::NAN);
+        let s = s.sanitized();
+        assert_eq!(s.modes.rp.model, "claude-sonnet-5-5");
+        assert_eq!(s.modes.rp.max_tokens, 4000);
+        assert_eq!(s.modes.rp.temperature, Some(1.0));
+        assert_eq!(s.modes.grammar.model, "claude-haiku-5-5");
+        assert_eq!(s.modes.grammar.temperature, None);
     }
 }
