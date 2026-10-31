@@ -4,8 +4,9 @@
 use keyring::Entry;
 use secrecy::{ExposeSecret, SecretString};
 
+use crate::llm::Provider;
+
 const SERVICE: &str = "RoleplayRelay";
-const USER: &str = "anthropic-api-key";
 const MAX_KEY_LEN: usize = 512;
 
 #[derive(Debug, thiserror::Error)]
@@ -16,8 +17,16 @@ pub enum SecretError {
     Store,
 }
 
-fn entry() -> Result<Entry, SecretError> {
-    Entry::new(SERVICE, USER).map_err(|_| SecretError::Store)
+/// One Credential Manager account per provider.
+fn account(provider: Provider) -> &'static str {
+    match provider {
+        Provider::Anthropic => "anthropic-api-key",
+        Provider::OpenAi => "openai-api-key",
+    }
+}
+
+fn entry(provider: Provider) -> Result<Entry, SecretError> {
+    Entry::new(SERVICE, account(provider)).map_err(|_| SecretError::Store)
 }
 
 /// Reject empty, oversized, or whitespace/control-containing input (a pasted key is one token).
@@ -32,8 +41,8 @@ fn validate(raw: &str) -> Result<SecretString, SecretError> {
     Ok(SecretString::from(key.to_owned()))
 }
 
-pub fn has_api_key() -> Result<bool, SecretError> {
-    match entry()?.get_password() {
+pub fn has_api_key(provider: Provider) -> Result<bool, SecretError> {
+    match entry(provider)?.get_password() {
         Ok(_) => Ok(true),
         Err(keyring::Error::NoEntry) => Ok(false),
         Err(_) => Err(SecretError::Store),
@@ -41,23 +50,23 @@ pub fn has_api_key() -> Result<bool, SecretError> {
 }
 
 /// For the Rust API client only. Never exposed as a command.
-pub fn get_api_key() -> Result<Option<SecretString>, SecretError> {
-    match entry()?.get_password() {
+pub fn get_api_key(provider: Provider) -> Result<Option<SecretString>, SecretError> {
+    match entry(provider)?.get_password() {
         Ok(k) => Ok(Some(SecretString::from(k))),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(_) => Err(SecretError::Store),
     }
 }
 
-pub fn set_api_key(raw: String) -> Result<(), SecretError> {
+pub fn set_api_key(provider: Provider, raw: String) -> Result<(), SecretError> {
     let key = validate(&raw)?;
-    entry()?
+    entry(provider)?
         .set_password(key.expose_secret())
         .map_err(|_| SecretError::Store)
 }
 
-pub fn clear_api_key() -> Result<(), SecretError> {
-    match entry()?.delete_credential() {
+pub fn clear_api_key(provider: Provider) -> Result<(), SecretError> {
+    match entry(provider)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(_) => Err(SecretError::Store),
     }
@@ -66,6 +75,12 @@ pub fn clear_api_key() -> Result<(), SecretError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_provider_has_its_own_account() {
+        assert_eq!(account(Provider::Anthropic), "anthropic-api-key");
+        assert_eq!(account(Provider::OpenAi), "openai-api-key");
+    }
 
     #[test]
     fn rejects_empty_and_whitespace() {

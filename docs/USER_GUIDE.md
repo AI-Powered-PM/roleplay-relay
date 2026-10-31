@@ -49,33 +49,62 @@ Start with Windows: open `Settings` and tick `Start with Windows` in the `Genera
 The app then starts hidden in the tray every time you log in. Untick it to turn it off. If you
 see an error under the box, restart the app and try again.
 
-## 3. API key
+## 3. AI provider and API key
 
-The app uses the Claude API from Anthropic. You need your own API key.
+The app can use one of two AI services. You pick one in `Settings`. You need your own API key
+for the one you pick.
 
-**Create a key**
+| | `Anthropic (Claude)` | `OpenAI` |
+|---|---|---|
+| Models used by default | Claude Haiku and Sonnet | `gpt-6-luna` and `gpt-6.1-terra` |
+| Quality | Both give good translations and natural English. Try each on a few lines of your own chat and keep the one whose English you like better. | Same. |
+| Cost | Cheap for translating (`Incoming`, `Grammar`), a little more for `Direct` and `RP`. See section 12. | Same idea: a small model for `Incoming` and `Grammar`, a bigger one for `Direct` and `RP`. See section 12. |
+
+Both work the same way in the app. You can save both keys and switch any time.
+Each service needs **credits on its own account**. Without credits you see
+`No credits left on your Anthropic account` or `No credits left on your OpenAI account`.
+
+**Create a key: Anthropic**
 
 1. Open the Anthropic Console: <https://console.anthropic.com>
 2. Sign in. Add a small amount of credit in the billing section.
 3. Open the API keys page and create a new key. Copy it.
 
-**Put the key in the app**
+**Create a key: OpenAI**
+
+1. Open the OpenAI Platform: <https://platform.openai.com>
+2. Sign in. Add a small amount of credit in the billing section.
+3. Open the API keys page and create a new secret key. Copy it.
+
+**Choose the provider and put the key in the app**
 
 1. Tray icon → `Settings`.
-2. In the `Anthropic API key` section, click the field with the hint `Paste your API key`
-   and paste the key (Ctrl+V). You will see dots, not the key.
-3. Click `Save key`.
-4. The text under the title changes to `API key is set`, and you see `Key saved`.
+2. In the `AI provider` section, pick `Anthropic (Claude)` or `OpenAI` in the `AI provider`
+   list. Click `Save settings` at the bottom. The next request already goes to this service.
+   No restart is needed.
+3. Find the key section of the provider you picked: `Anthropic API key` or `OpenAI API key`.
+   Click the field with the hint `Paste your API key` and paste the key (Ctrl+V).
+   You will see dots, not the key.
+4. Click `Save key`.
+5. The text under the title changes to `API key is set`, and you see `Key saved`.
    The field is empty again. This is normal: the app never shows the key again.
+
+Each service has its own key field. Saving a key for one does not touch the other one.
+Switching `AI provider` never removes a key or your model choices.
+
+**Check that it works**: copy any English chat line and press `Ctrl+Alt+T` (section 6).
+You should see a translation in the overlay. If you see a red message instead, find it in
+section 10.
 
 **Replace the key**: paste the new key and click `Save key`.
 
-**Remove the key**: click `Clear key`. You will see `Key removed` and `No API key set`.
+**Remove the key**: click `Clear key` in that provider's section. You will see `Key removed`
+and `No API key set`.
 
-**Where the key is stored**: in Windows Credential Manager (Control Panel → Credential Manager →
-Windows Credentials). It is not in any app file.
+**Where the keys are stored**: in Windows Credential Manager (Control Panel → Credential Manager →
+Windows Credentials), one entry per service. They are not in any app file.
 
-**Important**: after you copy the key, it stays in the Windows clipboard. Clear it:
+**Important**: after you copy a key, it stays in the Windows clipboard. Clear it:
 copy any other short text (for example a single letter). The app also refuses to send
 anything that looks like a key.
 
@@ -331,11 +360,13 @@ Close the other app or choose another key.
 ## 8. Settings
 
 Open the tray icon → `Settings`. Change what you want and click `Save settings`. You see
-`Settings saved`. Hotkeys, models, overlay values and `Your language` work at once. No restart is needed.
-The API key and `Start with Windows` work on their own; they do not need `Save settings`.
+`Settings saved`. Hotkeys, `AI provider`, models, overlay values and `Your language` work at once. No restart is needed.
+The API keys and `Start with Windows` work on their own; they do not need `Save settings`.
 
 | Field | What it does | Default | When to change it |
 |---|---|---|---|
+| `AI provider` | Which service gets your requests: `Anthropic (Claude)` or `OpenAI`. Each has its own key and its own models. See section 3. | `Anthropic (Claude)` | When you want to try the other service, or one account has no credits. |
+| `Anthropic API key`, `OpenAI API key` | Write-only fields for the keys. Buttons `Save key` and `Clear key`. | empty | Once per provider you use. |
 | `Start with Windows` (`General`) | Starts the app in the tray when you log in to Windows. | off | Turn on if you use the app every day. |
 | `Your language` (`Language`) | The language of translations and back-translations: `Deutsch`, `简体中文`, `Français`, `Español`, `Русский`. See section 4. | `Русский` | Set it once, right after the API key. |
 | `Translate clipboard` | Hotkey for translating a copied chat line. | `Ctrl+Alt+T` | When another app uses this key. |
@@ -343,7 +374,7 @@ The API key and `Start with Windows` work on their own; they do not need `Save s
 | `Quick clipboard mode` | Hotkey for quick mode. | `Ctrl+Alt+E` | Same. |
 | `Copy next part` | Hotkey for the next part of a long message. | `Ctrl+Alt+N` | Same. |
 | `Show/Hide overlay` | Hotkey for the overlay. | `Ctrl+Alt+O` | Same. |
-| `Incoming`, `Direct`, `RP`, `Grammar` rows in `Models` | Model name, `Max tokens` (the longest answer allowed) and `Temperature` (0 = careful, 1 = more creative; empty = model default) for each mode. | See section 12 | Change a model if you want a cheaper or stronger one. Use only real model names from your Console. |
+| `Incoming`, `Direct`, `RP`, `Grammar` rows in `Models — Anthropic` and `Models — OpenAI` | Model name, `Max tokens` (the longest answer allowed) and `Temperature` (0 = careful, 1 = more creative; empty = model default) for each mode. There is one table for each provider. The table of the active provider has `(active)` in its title. | See section 12 | Change a model if you want a cheaper or stronger one. Use only real model names from your provider's model list. Models get retired, so check the list now and then. |
 | `Position` | Screen corner of the overlay: `Top right`, `Top left`, `Bottom right`, `Bottom left`. | `Top right` | Move it away from your chat or action bars. |
 | `Width` | Overlay width in pixels (240–900). | 420 | Wider = fewer lines. |
 | `Font size` | Text size in the overlay (12–32). | 16 | Bigger if it is hard to read. |
@@ -369,8 +400,13 @@ A hotkey that does not work is **red**, with the reason under it:
 After saving you may also see `Settings saved — some hotkeys could not be registered`. The other
 hotkeys still work.
 
-`Reset models` puts the four model rows back to the defaults (click `Save settings` after).
-Wrong values are repaired when you save (for example an empty model name or `Max tokens` of 999999).
+`Reset Anthropic models` and `Reset OpenAI models` put the four model rows of that provider back to
+the defaults (click `Save settings` after). Wrong values are repaired when you save (for example an
+empty model name or `Max tokens` of 999999).
+
+Some models do not accept `Temperature` (or, for OpenAI, the reasoning setting the app sends).
+The app notices this, tries again without it and does not send it again for that model until you
+restart the app. You see nothing; the request just works.
 
 ## 9. Character, glossary and prompts
 
@@ -428,19 +464,23 @@ in red under the text box in the compose window.
 |---|---|---|
 | `Clipboard is empty` | There is no text in the clipboard (it may hold a picture). | Copy a chat line first. |
 | `Text too long` | The text is longer than 1500 characters. | Copy a shorter part. |
-| `Clipboard looks like a key/password — not sent` | The text looks like an API key or password (one long word of plain English letters, digits and signs like `-` `_`, or it contains `sk-ant-`). The app refuses to send it. Chinese and other non-English lines are not mistaken for keys. | Copy something else. Clear the key from your clipboard (see section 3). |
+| `Clipboard looks like a key/password — not sent` | The text looks like an API key or password (one long word of plain English letters, digits and signs like `-` `_`, or it contains `sk-ant-`, `sk-proj-`, `sk-svcacct-` or `sk-` and 20 more letters or digits). The app refuses to send it. Chinese and other non-English lines are not mistaken for keys. | Copy something else. Clear the key from your clipboard (see section 3). |
 | `Text looks like a key/password — not sent` | Same, but for text typed in the compose window. | Remove the key or password from your message. |
 | `Type a message first` | The compose text box is empty. | Type something. |
 | `Slow down` | More than 30 requests in one minute. | Wait a little. |
 
-**Problems with the Claude service:**
+**Problems with the AI service.** `Anthropic` or `OpenAI` in the messages is the provider you
+chose in `AI provider`.
 
 | Message | What it means | What to do |
 |---|---|---|
-| `No API key — open Settings` | No key is saved. | Add your key (section 3). |
-| `Invalid API key` | The service refused the key. | Check the key in the Console. Save it again. |
+| `No Anthropic API key — open Settings` / `No OpenAI API key — open Settings` | No key is saved for the provider you chose. | Add the key (section 3), or choose the other provider. |
+| `Invalid Anthropic API key` / `Invalid OpenAI API key` | The service refused the key. | Check the key in the Console or on the Platform. Save it again. |
+| `No credits left on your Anthropic account` / `No credits left on your OpenAI account` | The account has no money left (or the monthly spend limit is reached). The app does not try again. | Add credit in the billing section of the Console or the Platform, or switch `AI provider`. |
 | `Too many requests, wait a moment` | You hit the service limit. | Wait a few seconds and try again. |
 | `Service overloaded, try again` | The service is busy or has an error. | Try again in a minute. |
+| `Reply was cut off — nothing copied` | The answer hit the `Max tokens` limit before it was finished. **Nothing was copied.** | Write a shorter message, or raise `Max tokens` for that mode in `Settings`. |
+| `(cut off)` at the end of a translation | For `Ctrl+Alt+T` the half answer is shown, marked this way. | Read it with care. Raise `Max tokens` for `Incoming` if it happens often. |
 | `No response from server` | No answer in 20 seconds, or no internet. | Check your internet and try again. |
 | `Unexpected reply from server` | The answer was empty or in a wrong format. | Try again. If it repeats, send `logs\app.log` (section 11). |
 | `Unexpected reply — nothing copied` | In `Direct`, `RP` or `Grammar`, the answer did not have the English text in the required format (or had only emoji). The raw answer is shown dimmed under the message. **Nothing was copied.** | Press `Enter` again. If it repeats, you may have changed a prompt file by mistake (section 9). Delete it to get the default back. |
@@ -472,14 +512,15 @@ the overlay shows the reason followed by
 | `Result still has Spanish text` | You use `Español` and the English text still has Spanish: `¿ ¡ ñ`, a vowel with an accent like `á é í ó ú`, or at least two Spanish words such as `hola`, `gracias`, `pero`. | Same. Words like `señor` or `café` can cause a false alarm. |
 | `Result still has Russian text` | You use `Русский` and the English text still has Cyrillic letters. | Same. |
 | `Result has non-English letters` | The English text has letters of another alphabet (Cyrillic, Greek, Chinese, Arabic, …) that are not your language. Letters like `é` and `ñ` are fine. | Change your message. `Copy anyway` is almost never a good idea. |
-| `Blocked: the reply looks like AI or translation text, not a chat line` | The text has words like `as an ai`, `language model`, `claude`, `anthropic`, `translation:`, or a tag. The model probably talked to you instead of writing your line. | Press `Enter` again or change your message. Use `Copy anyway` only if these words are really part of what you want to say. |
+| `Blocked: the reply looks like AI or translation text, not a chat line` | The text has words like `as an ai`, `language model`, `claude`, `anthropic`, `openai`, `chatgpt`, `translation:`, or a tag. The model probably talked to you instead of writing your line. | Press `Enter` again or change your message. Use `Copy anyway` only if these words are really part of what you want to say. |
 | `Blocked: the reply is too long (more than 4 chat messages)` | The text would need more than 4 chat messages. | Write a shorter message. See **Long messages** in section 6. |
 
 The check for your language is exact for `简体中文` and `Русский` (it looks at the alphabet). For
 `Deutsch`, `Français` and `Español` it is weaker: a single leftover word without special
 letters can pass. Always read the English text before you press `Enter`.
 
-**Nothing is copied** also when the model refuses (`Not written:` and the reason).
+**Nothing is copied** also when the model refuses (`Not written:` and the reason). OpenAI can send
+a refusal as a separate part of its answer; the app handles it the same way and shows the refusal text.
 
 ## 11. Troubleshooting
 
@@ -518,28 +559,54 @@ When you ask for help, send the last lines of this file and the message you saw.
 
 ## 12. Costs
 
-You pay Anthropic for what the app sends. Prices below are per 1 million tokens (a token is
-about 3–4 English letters; other languages use more). They are the public prices when this guide was
-written. Check the Anthropic pricing page for current prices.
+You pay the provider you chose (Anthropic or OpenAI) for what the app sends. A token is
+about 3–4 English letters; other languages use more. One request sends about 1000–1500 tokens
+(the prompt, your character, the last lines of chat, your text) and gets back about 100–200 tokens.
+Prices change. Check the pricing page of your provider for the current numbers.
 
-| Mode | Default model | Input | Output | `Max tokens` | `Temperature` |
-|---|---|---|---|---|---|
-| `Incoming` (`Ctrl+Alt+T`) | `claude-haiku-5-5` | $0.10 | $0.50 | 800 | 0.2 |
-| `Direct` | `claude-sonnet-5-5` | $2.00 | $10.00 | 800 | 0.3 |
-| `RP` | `claude-sonnet-5-5` | $2.00 | $10.00 | 800 | 0.7 |
-| `Grammar` | `claude-haiku-5-5` | $0.10 | $0.50 | 400 | 0 |
+**Which model each mode uses by default**
 
-**Rough cost of one message.** One request sends about 1000–1500 tokens (the prompt, your
-character, the last lines of chat, your text) and gets back about 100–200 tokens.
+| Mode | `Anthropic (Claude)` | `OpenAI` | `Max tokens` | `Temperature` |
+|---|---|---|---|---|
+| `Incoming` (`Ctrl+Alt+T`) | `claude-haiku-5-5` | `gpt-6-luna` | 800 | 0.2 |
+| `Direct` | `claude-sonnet-5-5` | `gpt-6.1-terra` | 800 | 0.3 |
+| `RP` | `claude-sonnet-5-5` | `gpt-6.1-terra` | 800 | 0.7 |
+| `Grammar` | `claude-haiku-5-5` | `gpt-6-luna` | 400 | 0 |
 
-- `Incoming` and `Grammar` (Haiku): about **$0.0002** — five hundred messages cost about 10 cents.
-- `Direct` and `RP` (Sonnet): about **$0.005** — about half a cent; two hundred messages cost
+**Anthropic.** Prices per 1 million tokens, when this guide was written:
+
+| Model | Input | Output |
+|---|---|---|
+| `claude-haiku-5-5` | $0.10 | $0.50 |
+| `claude-sonnet-5-5` | $2.00 | $10.00 |
+
+- `Incoming` and `Grammar` (Haiku): about **$0.0002** per message — five hundred messages cost about 10 cents.
+- `Direct` and `RP` (Sonnet): about **$0.005** per message — about half a cent; two hundred messages cost
   about one dollar.
 
-These are estimates. If a model thinks before it answers, the answer can cost more. To spend
-less, use the Haiku model in `Direct` or `RP` (`Models` section in `Settings`), at some loss of
-quality.
+**OpenAI.** The small model (`gpt-6-luna`) is for `Incoming` and `Grammar`, the bigger one
+(`gpt-6.1-terra`) for `Direct` and `RP`, like Haiku and Sonnet above. This guide does not list
+OpenAI prices, because they change. To estimate: take about 1500 input tokens and 200 output tokens per
+message, and multiply by the prices on the OpenAI pricing page (<https://openai.com/api/pricing>).
+The app asks OpenAI not to think before it answers (reasoning is off), so the answer stays short and cheap.
+It also asks OpenAI not to store your chat text.
 
-**See the real numbers.** The Anthropic Console (<https://console.anthropic.com>) → Usage and
-Cost shows tokens and money by day. `logs\app.log` has one line per request with the model, time
-in milliseconds and input/output tokens.
+These are estimates. To spend less, use the small model in `Direct` or `RP` (the `Models`
+section for your provider in `Settings`), at some loss of quality.
+
+**See the real numbers.**
+
+- Anthropic: the Console (<https://console.anthropic.com>) → Usage and Cost shows tokens and
+  money by day.
+- OpenAI: the Platform (<https://platform.openai.com>) → Usage shows tokens and money by day.
+- Both: `logs\app.log` has one line per request with the provider, model, time in milliseconds and
+  input/output tokens.
+
+**Set a spend limit.** Do this once, so a mistake cannot cost much.
+
+- Anthropic: Console → Settings → Limits. Set a monthly spend limit.
+- OpenAI: Platform → Settings → Billing → Limits. Set a monthly budget, or only add a small prepaid
+  amount of credit.
+
+When the limit is reached, requests fail with `No credits left on your Anthropic account` or
+`No credits left on your OpenAI account`.

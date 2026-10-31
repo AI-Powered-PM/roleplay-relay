@@ -4,13 +4,15 @@ import type {
   HotkeyStatus,
   LanguageOption,
   OutgoingMode,
+  Provider,
   Settings,
   SubmitResult,
 } from "./types";
 
-export const hasApiKey = () => invoke<boolean>("has_api_key");
-export const setApiKey = (key: string) => invoke<void>("set_api_key", { key });
-export const clearApiKey = () => invoke<void>("clear_api_key");
+export const hasApiKey = (provider: Provider) => invoke<boolean>("has_api_key", { provider });
+export const setApiKey = (provider: Provider, key: string) =>
+  invoke<void>("set_api_key", { provider, key });
+export const clearApiKey = (provider: Provider) => invoke<void>("clear_api_key", { provider });
 export const getSettings = () => invoke<Settings>("get_settings");
 export const saveSettings = (settings: Settings) =>
   invoke<HotkeyStatus[]>("save_settings", { settings });

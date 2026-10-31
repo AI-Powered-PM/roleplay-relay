@@ -8,6 +8,7 @@ use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
 use crate::languages;
+use crate::llm::Provider;
 use crate::prompts::Mode;
 
 const STORE_FILE: &str = "settings.json";
@@ -81,13 +82,58 @@ pub struct Modes {
     pub grammar: ModeConfig,
 }
 
+impl Modes {
+    /// The spec's default models per mode for one provider.
+    pub fn defaults(provider: Provider) -> Self {
+        let (fast, smart) = match provider {
+            Provider::Anthropic => ("claude-haiku-5-5", "claude-sonnet-5-5"),
+            Provider::OpenAi => ("gpt-6-luna", "gpt-6.1-terra"),
+        };
+        Self {
+            incoming: ModeConfig::new(fast, 800, 0.2),
+            direct: ModeConfig::new(smart, 800, 0.3),
+            rp: ModeConfig::new(smart, 800, 0.7),
+            grammar: ModeConfig::new(fast, 400, 0.0),
+        }
+    }
+
+    pub fn get(&self, mode: Mode) -> &ModeConfig {
+        match mode {
+            Mode::Incoming => &self.incoming,
+            Mode::Direct => &self.direct,
+            Mode::Rp => &self.rp,
+            Mode::Grammar => &self.grammar,
+        }
+    }
+
+    fn sanitize(&mut self, provider: Provider) {
+        let d = Modes::defaults(provider);
+        self.incoming.sanitize(&d.incoming);
+        self.direct.sanitize(&d.direct);
+        self.rp.sanitize(&d.rp);
+        self.grammar.sanitize(&d.grammar);
+    }
+}
+
 impl Default for Modes {
     fn default() -> Self {
+        Self::defaults(Provider::Anthropic)
+    }
+}
+
+/// One model table per provider, so switching provider never loses the other one's models.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ProviderModels {
+    pub anthropic: Modes,
+    pub openai: Modes,
+}
+
+impl Default for ProviderModels {
+    fn default() -> Self {
         Self {
-            incoming: ModeConfig::new("claude-haiku-5-5", 800, 0.2),
-            direct: ModeConfig::new("claude-sonnet-5-5", 800, 0.3),
-            rp: ModeConfig::new("claude-sonnet-5-5", 800, 0.7),
-            grammar: ModeConfig::new("claude-haiku-5-5", 400, 0.0),
+            anthropic: Modes::defaults(Provider::Anthropic),
+            openai: Modes::defaults(Provider::OpenAi),
         }
     }
 }
@@ -118,7 +164,8 @@ impl Default for OverlaySettings {
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
     pub hotkeys: Hotkeys,
-    pub modes: Modes,
+    pub provider: Provider,
+    pub models: ProviderModels,
     pub overlay: OverlaySettings,
     pub split_marker: String,
     pub debug_log_chat: bool,
@@ -130,7 +177,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             hotkeys: Hotkeys::default(),
-            modes: Modes::default(),
+            provider: Provider::default(),
+            models: ProviderModels::default(),
             overlay: OverlaySettings::default(),
             split_marker: "(n/m)".into(),
             debug_log_chat: false,
@@ -141,14 +189,19 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// The model table of the provider that is active right now.
+    pub fn active_modes(&self) -> &Modes {
+        match self.provider {
+            Provider::Anthropic => &self.models.anthropic,
+            Provider::OpenAi => &self.models.openai,
+        }
+    }
+
     /// Clamp values the UI could send out of range, and reject unknown enum-like strings.
     pub fn sanitized(mut self) -> Self {
         let d = OverlaySettings::default();
-        let dm = Modes::default();
-        self.modes.incoming.sanitize(&dm.incoming);
-        self.modes.direct.sanitize(&dm.direct);
-        self.modes.rp.sanitize(&dm.rp);
-        self.modes.grammar.sanitize(&dm.grammar);
+        self.models.anthropic.sanitize(Provider::Anthropic);
+        self.models.openai.sanitize(Provider::OpenAi);
         for k in [
             &mut self.hotkeys.translate,
             &mut self.hotkeys.compose,
@@ -204,9 +257,31 @@ pub fn load(app: &AppHandle, data_dir: &Path) -> Result<Settings, String> {
     for (k, v) in store.entries() {
         obj.insert(k, v);
     }
+    if migrate_legacy_modes(&mut obj) {
+        // Persist the move right away so the stale `modes` key does not linger in settings.json.
+        store.delete(LEGACY_MODES_KEY);
+        if let Some(models) = obj.get("models") {
+            store.set("models", models.clone());
+        }
+        let _ = store.save();
+    }
     let settings: Settings =
         serde_json::from_value(serde_json::Value::Object(obj)).unwrap_or_default();
     Ok(settings.sanitized())
+}
+
+const LEGACY_MODES_KEY: &str = "modes";
+
+/// Before the second provider existed, `modes` held the (Anthropic) model table. Move it to
+/// `models.anthropic` unless a `models` table already exists. Returns true when it changed `obj`.
+fn migrate_legacy_modes(obj: &mut serde_json::Map<String, serde_json::Value>) -> bool {
+    let Some(legacy) = obj.remove(LEGACY_MODES_KEY) else {
+        return false;
+    };
+    if !obj.contains_key("models") {
+        obj.insert("models".into(), serde_json::json!({ "anthropic": legacy }));
+    }
+    true
 }
 
 pub fn save(app: &AppHandle, data_dir: &Path, settings: Settings) -> Result<(), String> {
@@ -251,10 +326,90 @@ mod tests {
     fn defaults_match_spec() {
         let s = Settings::default();
         assert_eq!(s.hotkeys.translate, "Ctrl+Alt+T");
-        assert_eq!(s.modes.incoming.model, "claude-haiku-5-5");
-        assert_eq!(s.modes.rp.temperature, Some(0.7));
+        assert_eq!(s.models.anthropic.incoming.model, "claude-haiku-5-5");
+        assert_eq!(s.provider, Provider::Anthropic);
+        assert_eq!(s.models.anthropic.rp.temperature, Some(0.7));
         assert_eq!(s.overlay.auto_hide_seconds, 12);
         assert!(!s.debug_log_chat);
+    }
+
+    #[test]
+    fn default_models_match_the_spec_table() {
+        let s = Settings::default();
+        fn table(m: &Modes) -> [(&str, u32, Option<f32>); 4] {
+            [
+                (m.incoming.model.as_str(), m.incoming.max_tokens, m.incoming.temperature),
+                (m.direct.model.as_str(), m.direct.max_tokens, m.direct.temperature),
+                (m.rp.model.as_str(), m.rp.max_tokens, m.rp.temperature),
+                (m.grammar.model.as_str(), m.grammar.max_tokens, m.grammar.temperature),
+            ]
+        }
+        assert_eq!(
+            table(&s.models.anthropic),
+            [
+                ("claude-haiku-5-5", 800, Some(0.2)),
+                ("claude-sonnet-5-5", 800, Some(0.3)),
+                ("claude-sonnet-5-5", 800, Some(0.7)),
+                ("claude-haiku-5-5", 400, Some(0.0)),
+            ]
+        );
+        assert_eq!(
+            table(&s.models.openai),
+            [
+                ("gpt-6-luna", 800, Some(0.2)),
+                ("gpt-6.1-terra", 800, Some(0.3)),
+                ("gpt-6.1-terra", 800, Some(0.7)),
+                ("gpt-6-luna", 400, Some(0.0)),
+            ]
+        );
+    }
+
+    #[test]
+    fn active_modes_follow_the_provider_and_both_tables_survive_a_switch() {
+        let mut s = Settings::default();
+        s.models.openai.rp.model = "my-openai-model".into();
+        s.models.anthropic.rp.model = "my-claude-model".into();
+        assert_eq!(s.active_modes().rp.model, "my-claude-model");
+        s.provider = Provider::OpenAi;
+        assert_eq!(s.active_modes().rp.model, "my-openai-model");
+        s.provider = Provider::Anthropic;
+        let s = s.sanitized();
+        assert_eq!(s.models.openai.rp.model, "my-openai-model");
+        assert_eq!(s.models.anthropic.rp.model, "my-claude-model");
+    }
+
+    #[test]
+    fn provider_parses_from_json_and_defaults_to_anthropic() {
+        let s: Settings = serde_json::from_str(r#"{"provider":"openai"}"#).unwrap();
+        assert_eq!(s.provider, Provider::OpenAi);
+        let s: Settings = serde_json::from_str(r#"{"debugLogChat":true}"#).unwrap();
+        assert_eq!(s.provider, Provider::Anthropic);
+    }
+
+    #[test]
+    fn legacy_modes_become_the_anthropic_table() {
+        let mut obj = serde_json::Map::new();
+        obj.insert(
+            "modes".into(),
+            serde_json::json!({"rp": {"model": "claude-custom", "maxTokens": 500, "temperature": 0.5}}),
+        );
+        assert!(migrate_legacy_modes(&mut obj));
+        assert!(!obj.contains_key("modes"));
+        let s: Settings = serde_json::from_value(serde_json::Value::Object(obj)).unwrap();
+        assert_eq!(s.models.anthropic.rp.model, "claude-custom");
+        assert_eq!(s.models.anthropic.rp.max_tokens, 500);
+        assert_eq!(s.models.openai, Modes::defaults(Provider::OpenAi));
+    }
+
+    #[test]
+    fn legacy_modes_do_not_override_an_existing_models_table() {
+        let mut obj = serde_json::Map::new();
+        obj.insert("modes".into(), serde_json::json!({"rp": {"model": "old", "maxTokens": 500, "temperature": null}}));
+        obj.insert("models".into(), serde_json::json!({"anthropic": {"rp": {"model": "new", "maxTokens": 500, "temperature": null}}}));
+        assert!(migrate_legacy_modes(&mut obj));
+        let s: Settings = serde_json::from_value(serde_json::Value::Object(obj)).unwrap();
+        assert_eq!(s.models.anthropic.rp.model, "new");
+        assert!(!migrate_legacy_modes(&mut serde_json::Map::new()));
     }
 
     #[test]
@@ -302,16 +457,21 @@ mod tests {
     #[test]
     fn sanitize_repairs_mode_config() {
         let mut s = Settings::default();
-        s.modes.rp.model = "  ".into();
-        s.modes.rp.max_tokens = 999_999;
-        s.modes.rp.temperature = Some(5.0);
-        s.modes.grammar.model = "bad model!".into();
-        s.modes.grammar.temperature = Some(f32::NAN);
+        s.models.anthropic.rp.model = "  ".into();
+        s.models.anthropic.rp.max_tokens = 999_999;
+        s.models.anthropic.rp.temperature = Some(5.0);
+        s.models.anthropic.grammar.model = "bad model!".into();
+        s.models.anthropic.grammar.temperature = Some(f32::NAN);
+        s.models.openai.rp.model = "".into();
+        s.models.openai.grammar.model = "bad model!".into();
         let s = s.sanitized();
-        assert_eq!(s.modes.rp.model, "claude-sonnet-5-5");
-        assert_eq!(s.modes.rp.max_tokens, 4000);
-        assert_eq!(s.modes.rp.temperature, Some(1.0));
-        assert_eq!(s.modes.grammar.model, "claude-haiku-5-5");
-        assert_eq!(s.modes.grammar.temperature, None);
+        assert_eq!(s.models.anthropic.rp.model, "claude-sonnet-5-5");
+        assert_eq!(s.models.anthropic.rp.max_tokens, 4000);
+        assert_eq!(s.models.anthropic.rp.temperature, Some(1.0));
+        assert_eq!(s.models.anthropic.grammar.model, "claude-haiku-5-5");
+        assert_eq!(s.models.anthropic.grammar.temperature, None);
+        // Each table repairs to its own provider's default.
+        assert_eq!(s.models.openai.rp.model, "gpt-6.1-terra");
+        assert_eq!(s.models.openai.grammar.model, "gpt-6-luna");
     }
 }

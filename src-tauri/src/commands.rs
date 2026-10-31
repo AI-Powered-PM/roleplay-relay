@@ -5,25 +5,26 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::actions::{self, Failure, SubmitResult};
+use crate::llm::Provider;
 use crate::prompts::Mode;
 use crate::{compose, hotkeys, languages, paths, prompts, secrets, settings};
 
 #[tauri::command]
-pub fn has_api_key() -> Result<bool, String> {
-    secrets::has_api_key().map_err(|e| e.to_string())
+pub fn has_api_key(provider: Provider) -> Result<bool, String> {
+    secrets::has_api_key(provider).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn set_api_key(key: String) -> Result<(), String> {
-    secrets::set_api_key(key).map_err(|e| e.to_string())?;
-    tracing::info!("API key saved");
+pub fn set_api_key(provider: Provider, key: String) -> Result<(), String> {
+    secrets::set_api_key(provider, key).map_err(|e| e.to_string())?;
+    tracing::info!(provider = provider.name(), "API key saved");
     Ok(())
 }
 
 #[tauri::command]
-pub fn clear_api_key() -> Result<(), String> {
-    secrets::clear_api_key().map_err(|e| e.to_string())?;
-    tracing::info!("API key cleared");
+pub fn clear_api_key(provider: Provider) -> Result<(), String> {
+    secrets::clear_api_key(provider).map_err(|e| e.to_string())?;
+    tracing::info!(provider = provider.name(), "API key cleared");
     Ok(())
 }
 

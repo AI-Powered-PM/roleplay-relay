@@ -1,5 +1,7 @@
 export type Mode = "incoming" | "direct" | "rp" | "grammar";
 
+export type Provider = "anthropic" | "openai";
+
 export interface ModeConfig {
   model: string;
   maxTokens: number;
@@ -16,7 +18,9 @@ export interface OverlaySettings {
 
 export interface Settings {
   hotkeys: Record<string, string>;
-  modes: Record<Mode, ModeConfig>;
+  provider: Provider;
+  /** One model table per provider; switching provider keeps both. */
+  models: Record<Provider, Record<Mode, ModeConfig>>;
   overlay: OverlaySettings;
   splitMarker: "(n/m)" | "…" | "none";
   debugLogChat: boolean;

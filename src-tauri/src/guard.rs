@@ -64,8 +64,20 @@ pub fn neutralize_tags(text: &str) -> String {
     }
 }
 
+/// Provider key prefixes (Anthropic, OpenAI project and service-account keys).
+const KEY_PREFIXES: &[&str] = &["sk-ant-", "sk-proj-", "sk-svcacct-"];
+
+/// A legacy-style `sk-` key: `sk-` and then at least 20 letters/digits, starting a token.
+fn sk_key_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)(?:^|[^a-z0-9])sk-[a-z0-9]{20,}").expect("sk key regex is valid")
+    })
+}
+
 fn looks_like_secret(text: &str) -> bool {
-    if text.to_ascii_lowercase().contains("sk-ant-") {
+    let lower = text.to_ascii_lowercase();
+    if KEY_PREFIXES.iter().any(|p| lower.contains(p)) || sk_key_regex().is_match(text) {
         return true;
     }
     let single_token = !text.chars().any(char::is_whitespace);
@@ -230,6 +242,32 @@ mod tests {
             check_input("  Xk9fQ2mLp7Rt4Vw8Zb3Nc6Hd1Jg5\n"),
             Err(GuardError::LooksLikeSecret)
         );
+    }
+
+    #[test]
+    fn openai_keys_are_sniffed() {
+        for s in [
+            "sk-proj-abc",
+            "my key: SK-PROJ-xyz_123",
+            "sk-svcacct-abc",
+            "sk-abcdefghijklmnopqrst",
+            "here it is sk-abcdefghijklmnopqrstuvwxyz0123 ok",
+            "sk-proj-AbC123-dEf456_gHi789",
+        ] {
+            assert_eq!(check_input(s), Err(GuardError::LooksLikeSecret), "{s}");
+        }
+    }
+
+    #[test]
+    fn sk_in_normal_chat_is_not_a_secret() {
+        for s in [
+            "sk-short",
+            "the task-force-sk-nineteen-chars is fine",
+            "Mask-abcdefghijklmnopqrstuvwxyz is a word",
+            "sk- nothing here",
+        ] {
+            assert!(check_input(s).is_ok(), "{s}");
+        }
     }
 
     #[test]

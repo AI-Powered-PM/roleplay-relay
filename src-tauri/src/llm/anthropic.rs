@@ -7,8 +7,8 @@ use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
 
 use super::{
-    ApiError, BoxFuture, Failure, LlmProvider, LlmReply, LlmRequest, LlmResponse, Retry, BACKOFF,
-    TIMEOUT,
+    execute, round_temperature, ApiError, BoxFuture, Extras, Failure, LlmProvider, LlmReply,
+    LlmRequest, LlmResponse, Provider, Retry, BACKOFF, TIMEOUT,
 };
 
 const ENDPOINT_PATH: &str = "/v1/messages";
@@ -34,7 +34,7 @@ impl Client {
         Self {
             http,
             base_url: base_url.trim_end_matches('/').to_owned(),
-            retry: Retry::new(backoff),
+            retry: Retry::new(Provider::Anthropic, backoff),
         }
     }
 
@@ -42,9 +42,9 @@ impl Client {
         &self,
         key: &SecretString,
         req: &LlmRequest<'_>,
-        temperature: Option<f32>,
+        extras: Extras,
     ) -> Result<LlmResponse, Failure> {
-        let body = build_body(req, temperature);
+        let body = build_body(req, extras.temperature);
 
         let mut key_header =
             HeaderValue::from_str(key.expose_secret()).map_err(|_| Failure::Status {
@@ -53,36 +53,23 @@ impl Client {
             })?;
         key_header.set_sensitive(true);
 
-        let response = self
-            .http
-            .post(format!("{}{}", self.base_url, ENDPOINT_PATH))
-            .header("x-api-key", key_header)
-            .header("anthropic-version", API_VERSION)
-            .header("content-type", "application/json")
-            .body(body.to_string())
-            .send()
-            .await
-            // Deliberately drop the reqwest error: it can carry URL and request details.
-            .map_err(|e| {
-                if e.is_timeout() {
-                    Failure::Timeout
-                } else {
-                    Failure::Network
-                }
-            })?;
-
-        let status = response.status();
-        let text = response.text().await.map_err(|e| {
-            if e.is_timeout() {
-                Failure::Timeout
-            } else {
-                Failure::Network
+        let (status, text) = execute(
+            self.http
+                .post(format!("{}{}", self.base_url, ENDPOINT_PATH))
+                .header("x-api-key", key_header)
+                .header("anthropic-version", API_VERSION)
+                .header("content-type", "application/json")
+                .body(body.to_string()),
+        )
+        .await?;
+        if !(200..300).contains(&status) {
+            let message = api_error_message(&text);
+            if is_no_credits(status, &message) {
+                return Err(Failure::NoCredits);
             }
-        })?;
-        if !status.is_success() {
             return Err(Failure::Status {
-                code: status.as_u16(),
-                message: api_error_message(&text),
+                code: status,
+                message,
             });
         }
         parse_reply(&text).ok_or(Failure::Status {
@@ -100,7 +87,7 @@ impl LlmProvider for Client {
     ) -> BoxFuture<'a, Result<LlmResponse, ApiError>> {
         Box::pin(async move {
             self.retry
-                .run(req, |temperature| self.attempt(key, req, temperature))
+                .run(req, |extras| self.attempt(key, req, extras))
                 .await
         })
     }
@@ -115,8 +102,7 @@ fn build_body(req: &LlmRequest<'_>, temperature: Option<f32>) -> Value {
         "messages": [{ "role": "user", "content": req.user }],
     });
     if let Some(t) = temperature {
-        // Round through f32 noise so the body says 0.2, not 0.20000000298.
-        body["temperature"] = json!((f64::from(t) * 100.0).round() / 100.0);
+        body["temperature"] = json!(round_temperature(t));
     }
     body
 }
@@ -128,6 +114,11 @@ fn api_error_message(body: &str) -> String {
         .ok()
         .and_then(|v| v["error"]["message"].as_str().map(str::to_owned))
         .unwrap_or_default()
+}
+
+/// Out of credits is an HTTP 400 whose message mentions the credit balance.
+fn is_no_credits(status: u16, message: &str) -> bool {
+    status == 400 && message.to_lowercase().contains("credit balance")
 }
 
 fn parse_reply(body: &str) -> Option<LlmResponse> {
@@ -142,22 +133,15 @@ fn parse_reply(body: &str) -> Option<LlmResponse> {
         reply: LlmReply::Text(text),
         input_tokens: v["usage"]["input_tokens"].as_u64().unwrap_or(0),
         output_tokens: v["usage"]["output_tokens"].as_u64().unwrap_or(0),
+        truncated: v["stop_reason"] == "max_tokens",
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use crate::llm::test_support::{body_of, mock, Canned};
     use tokio::net::TcpListener;
-
-    #[derive(Clone)]
-    struct Canned {
-        status: u16,
-        body: String,
-        delay: Duration,
-    }
 
     fn ok(text: &str) -> Canned {
         Canned {
@@ -178,72 +162,6 @@ mod tests {
                 .to_string(),
             delay: Duration::ZERO,
         }
-    }
-
-    /// Tiny HTTP server: answers requests in order with the canned responses and records
-    /// each raw request (headers + body).
-    async fn mock(responses: Vec<Canned>) -> (String, Arc<Mutex<Vec<String>>>) {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("http://{}", listener.local_addr().unwrap());
-        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
-        let seen2 = seen.clone();
-        let queue = Arc::new(Mutex::new(
-            responses
-                .into_iter()
-                .collect::<std::collections::VecDeque<_>>(),
-        ));
-        tokio::spawn(async move {
-            loop {
-                let Ok((mut sock, _)) = listener.accept().await else {
-                    return;
-                };
-                let seen = seen2.clone();
-                let queue = queue.clone();
-                tokio::spawn(async move {
-                    let mut buf = Vec::new();
-                    let mut chunk = [0u8; 4096];
-                    loop {
-                        let n = sock.read(&mut chunk).await.unwrap_or(0);
-                        if n == 0 {
-                            return;
-                        }
-                        buf.extend_from_slice(&chunk[..n]);
-                        let text = String::from_utf8_lossy(&buf).into_owned();
-                        if let Some(split) = text.find("\r\n\r\n") {
-                            let len = text[..split]
-                                .lines()
-                                .find_map(|l| {
-                                    l.to_lowercase()
-                                        .strip_prefix("content-length:")
-                                        .map(|v| v.trim().parse::<usize>().unwrap())
-                                })
-                                .unwrap_or(0);
-                            if buf.len() >= split + 4 + len {
-                                break;
-                            }
-                        }
-                    }
-                    seen.lock()
-                        .unwrap()
-                        .push(String::from_utf8_lossy(&buf).into_owned());
-                    let canned = queue
-                        .lock()
-                        .unwrap()
-                        .pop_front()
-                        .expect("mock ran out of responses");
-                    tokio::time::sleep(canned.delay).await;
-                    let resp = format!(
-                        "HTTP/1.1 {} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                        canned.status,
-                        canned.body.len(),
-                        canned.body
-                    );
-                    let _ = sock.write_all(resp.as_bytes()).await;
-                    let _ = sock.shutdown().await;
-                });
-            }
-        });
-        (url, seen)
     }
 
     fn client(url: &str) -> Client {
@@ -276,7 +194,8 @@ mod tests {
             LlmResponse {
                 reply: LlmReply::Text("Привет".into()),
                 input_tokens: 11,
-                output_tokens: 7
+                output_tokens: 7,
+                truncated: false
             }
         );
 
@@ -286,7 +205,7 @@ mod tests {
         assert!(lower.contains("x-api-key: test-key-123"));
         assert!(lower.contains("anthropic-version: 2023-06-01"));
         assert!(lower.contains("content-type: application/json"));
-        let body: Value = serde_json::from_str(raw.split("\r\n\r\n").nth(1).unwrap()).unwrap();
+        let body = body_of(&raw);
         assert_eq!(body["model"], "claude-haiku-5-5");
         assert_eq!(body["max_tokens"], 800);
         assert_eq!(body["temperature"], 0.2);
@@ -296,6 +215,7 @@ mod tests {
             json!([{ "role": "user", "content": "USER" }])
         );
         assert!(body.get("stream").is_none());
+        assert!(body.get("reasoning").is_none() && body.get("store").is_none());
     }
 
     #[test]
@@ -328,7 +248,24 @@ mod tests {
     async fn no_retry_on_401() {
         let (url, seen) = mock(vec![err(401, "bad key"), ok("never")]).await;
         let e = client(&url).complete(&key(), &req(None)).await.unwrap_err();
-        assert_eq!(e, ApiError::Unauthorized);
+        assert_eq!(e, ApiError::Unauthorized(Provider::Anthropic));
+        assert_eq!(e.to_string(), "Invalid Anthropic API key");
+        assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn credit_balance_400_is_no_credits_and_not_retried() {
+        let (url, seen) = mock(vec![
+            err(
+                400,
+                "Your credit balance is too low to access the Anthropic API.",
+            ),
+            ok("never"),
+        ])
+        .await;
+        let e = client(&url).complete(&key(), &req(None)).await.unwrap_err();
+        assert_eq!(e, ApiError::NoCredits(Provider::Anthropic));
+        assert_eq!(e.to_string(), "No credits left on your Anthropic account");
         assert_eq!(seen.lock().unwrap().len(), 1);
     }
 
@@ -406,5 +343,23 @@ mod tests {
         assert_eq!(parse_reply(&body).unwrap().text(), "ab");
         assert!(parse_reply("not json").is_none());
         assert!(parse_reply("{}").is_none());
+    }
+
+    #[test]
+    fn max_tokens_stop_reason_marks_the_reply_truncated() {
+        let cut = json!({
+            "content": [{ "type": "text", "text": "half a sent" }],
+            "stop_reason": "max_tokens"
+        })
+        .to_string();
+        let r = parse_reply(&cut).unwrap();
+        assert!(r.truncated);
+        assert_eq!(r.text(), "half a sent");
+        let done = json!({
+            "content": [{ "type": "text", "text": "ok" }],
+            "stop_reason": "end_turn"
+        })
+        .to_string();
+        assert!(!parse_reply(&done).unwrap().truncated);
     }
 }

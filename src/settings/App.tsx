@@ -12,7 +12,14 @@ import {
   setApiKey,
   setAutostart,
 } from "../shared/api";
-import type { HotkeyStatus, LanguageOption, Mode, ModeConfig, Settings } from "../shared/types";
+import type {
+  HotkeyStatus,
+  LanguageOption,
+  Mode,
+  ModeConfig,
+  Provider,
+  Settings,
+} from "../shared/types";
 
 function errorText(e: unknown): string {
   return typeof e === "string" ? e : "Something went wrong";
@@ -38,11 +45,23 @@ const MODE_ROWS: { id: Mode; label: string }[] = [
   { id: "rp", label: "RP" },
   { id: "grammar", label: "Grammar" },
 ];
-const MODE_DEFAULTS: Record<Mode, ModeConfig> = {
-  incoming: { model: "claude-haiku-5-5", maxTokens: 800, temperature: 0.2 },
-  direct: { model: "claude-sonnet-5-5", maxTokens: 800, temperature: 0.3 },
-  rp: { model: "claude-sonnet-5-5", maxTokens: 800, temperature: 0.7 },
-  grammar: { model: "claude-haiku-5-5", maxTokens: 400, temperature: 0 },
+const PROVIDERS: { id: Provider; label: string; name: string }[] = [
+  { id: "anthropic", label: "Anthropic (Claude)", name: "Anthropic" },
+  { id: "openai", label: "OpenAI", name: "OpenAI" },
+];
+const MODE_DEFAULTS: Record<Provider, Record<Mode, ModeConfig>> = {
+  anthropic: {
+    incoming: { model: "claude-haiku-5-5", maxTokens: 800, temperature: 0.2 },
+    direct: { model: "claude-sonnet-5-5", maxTokens: 800, temperature: 0.3 },
+    rp: { model: "claude-sonnet-5-5", maxTokens: 800, temperature: 0.7 },
+    grammar: { model: "claude-haiku-5-5", maxTokens: 400, temperature: 0 },
+  },
+  openai: {
+    incoming: { model: "gpt-6-luna", maxTokens: 800, temperature: 0.2 },
+    direct: { model: "gpt-6.1-terra", maxTokens: 800, temperature: 0.3 },
+    rp: { model: "gpt-6.1-terra", maxTokens: 800, temperature: 0.7 },
+    grammar: { model: "gpt-6-luna", maxTokens: 400, temperature: 0 },
+  },
 };
 
 /** Turns a key press into the combo text the backend parses, or null while only modifiers are down. */
@@ -61,9 +80,15 @@ function comboFromEvent(e: React.KeyboardEvent): string | null {
 }
 
 export default function App() {
-  const [keySet, setKeySet] = useState<boolean | null>(null);
-  const [keyInput, setKeyInput] = useState("");
-  const [keyMsg, setKeyMsg] = useState<string | null>(null);
+  const [keySet, setKeySet] = useState<Record<Provider, boolean | null>>({
+    anthropic: null,
+    openai: null,
+  });
+  const [keyInput, setKeyInput] = useState<Record<Provider, string>>({ anthropic: "", openai: "" });
+  const [keyMsg, setKeyMsg] = useState<Record<Provider, string | null>>({
+    anthropic: null,
+    openai: null,
+  });
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [hkStatus, setHkStatus] = useState<HotkeyStatus[]>([]);
@@ -73,7 +98,11 @@ export default function App() {
   const [oldPrompts, setOldPrompts] = useState<string[]>([]);
 
   useEffect(() => {
-    hasApiKey().then(setKeySet).catch(() => setKeySet(false));
+    for (const p of PROVIDERS) {
+      hasApiKey(p.id)
+        .then((v) => setKeySet((s) => ({ ...s, [p.id]: v })))
+        .catch(() => setKeySet((s) => ({ ...s, [p.id]: false })));
+    }
     getSettings().then(setSettings).catch((e) => setSaveMsg(errorText(e)));
     getHotkeyStatus().then(setHkStatus).catch(() => {});
     getAutostart().then(setAutostartState).catch(() => setAutostartState(false));
@@ -81,26 +110,31 @@ export default function App() {
     getPromptLanguageNotes().then(setOldPrompts).catch(() => {});
   }, []);
 
-  async function onSaveKey() {
-    const key = keyInput.trim();
+  const setKeyInputFor = (p: Provider, v: string) => setKeyInput((s) => ({ ...s, [p]: v }));
+  const setKeyMsgFor = (p: Provider, v: string | null) => setKeyMsg((s) => ({ ...s, [p]: v }));
+  const setKeySetFor = (p: Provider, v: boolean) => setKeySet((s) => ({ ...s, [p]: v }));
+
+  async function onSaveKey(p: Provider) {
+    const key = keyInput[p].trim();
     if (!key) return;
-    setKeyInput("");
+    // Write-only field: clear it right away, whatever the outcome.
+    setKeyInputFor(p, "");
     try {
-      await setApiKey(key);
-      setKeySet(true);
-      setKeyMsg("Key saved");
+      await setApiKey(p, key);
+      setKeySetFor(p, true);
+      setKeyMsgFor(p, "Key saved");
     } catch (e) {
-      setKeyMsg(errorText(e));
+      setKeyMsgFor(p, errorText(e));
     }
   }
 
-  async function onClearKey() {
+  async function onClearKey(p: Provider) {
     try {
-      await clearApiKey();
-      setKeySet(false);
-      setKeyMsg("Key removed");
+      await clearApiKey(p);
+      setKeySetFor(p, false);
+      setKeyMsgFor(p, "Key removed");
     } catch (e) {
-      setKeyMsg(errorText(e));
+      setKeyMsgFor(p, errorText(e));
     }
   }
 
@@ -132,8 +166,17 @@ export default function App() {
     setSettings((s) => (s ? { ...s, ...patch } : s));
   const setHotkey = (id: string, value: string) =>
     settings && update({ hotkeys: { ...settings.hotkeys, [id]: value } });
-  const setMode = (id: Mode, patch: Partial<ModeConfig>) =>
-    settings && update({ modes: { ...settings.modes, [id]: { ...settings.modes[id], ...patch } } });
+  const setMode = (provider: Provider, id: Mode, patch: Partial<ModeConfig>) =>
+    settings &&
+    update({
+      models: {
+        ...settings.models,
+        [provider]: {
+          ...settings.models[provider],
+          [id]: { ...settings.models[provider][id], ...patch },
+        },
+      },
+    });
 
   /** Problem for a row: the live registration result, or a duplicate in the unsaved form. */
   function hotkeyProblem(id: string): string | null {
@@ -152,33 +195,62 @@ export default function App() {
       <h1>Roleplay Relay — Settings</h1>
       <p className="status">RP chat helper</p>
 
-      <section>
-        <h2>Anthropic API key</h2>
-        <p className="status">
-          {keySet === null ? "Checking…" : keySet ? "API key is set" : "No API key set"}
-        </p>
-        <div className="row">
-          <input
-            type="password"
-            value={keyInput}
-            onChange={(e) => setKeyInput(e.target.value)}
-            placeholder="Paste your API key"
-            autoComplete="off"
-            spellCheck={false}
-            aria-label="API key"
-          />
-          <button onClick={onSaveKey} disabled={!keyInput.trim()}>
-            Save key
-          </button>
-          <button onClick={onClearKey} disabled={!keySet}>
-            Clear key
-          </button>
-        </div>
-        {keyMsg && <p className="msg">{keyMsg}</p>}
-        <p className="hint">
-          The key is stored in Windows Credential Manager. It is never shown here again.
-        </p>
-      </section>
+      {settings && (
+        <section>
+          <h2>AI provider</h2>
+          <label>
+            AI provider
+            <select
+              value={settings.provider}
+              onChange={(e) => update({ provider: e.target.value as Provider })}
+            >
+              {PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint">
+            Applies from the next request after you save. Each provider has its own key and its
+            own models; switching never removes the other one.
+          </p>
+        </section>
+      )}
+
+      {PROVIDERS.map((p) => (
+        <section key={p.id}>
+          <h2>{p.name} API key</h2>
+          <p className="status">
+            {keySet[p.id] === null
+              ? "Checking…"
+              : keySet[p.id]
+                ? "API key is set"
+                : "No API key set"}
+          </p>
+          <div className="row">
+            <input
+              type="password"
+              value={keyInput[p.id]}
+              onChange={(e) => setKeyInputFor(p.id, e.target.value)}
+              placeholder="Paste your API key"
+              autoComplete="off"
+              spellCheck={false}
+              aria-label={`${p.name} API key`}
+            />
+            <button onClick={() => onSaveKey(p.id)} disabled={!keyInput[p.id].trim()}>
+              Save key
+            </button>
+            <button onClick={() => onClearKey(p.id)} disabled={!keySet[p.id]}>
+              Clear key
+            </button>
+          </div>
+          {keyMsg[p.id] && <p className="msg">{keyMsg[p.id]}</p>}
+          <p className="hint">
+            The key is stored in Windows Credential Manager. It is never shown here again.
+          </p>
+        </section>
+      ))}
 
       <section>
         <h2>General</h2>
@@ -268,32 +340,42 @@ export default function App() {
             </p>
           </section>
 
-          <section>
-            <h2>Models</h2>
-            <div className="modes">
-              <span className="head">Mode</span>
-              <span className="head">Model</span>
-              <span className="head">Max tokens</span>
-              <span className="head">Temperature</span>
-              {MODE_ROWS.map((r) => (
-                <ModeRow
-                  key={r.id}
-                  label={r.label}
-                  cfg={settings.modes[r.id]}
-                  onChange={(p) => setMode(r.id, p)}
-                />
-              ))}
-            </div>
-            <div className="row">
-              <button
-                className="secondary"
-                onClick={() => update({ modes: structuredClone(MODE_DEFAULTS) })}
-              >
-                Reset models
-              </button>
-            </div>
-            <p className="hint">Leave temperature empty to let the model use its own default.</p>
-          </section>
+          {PROVIDERS.map((p) => (
+            <section key={p.id}>
+              <h2>
+                Models — {p.name}
+                {settings.provider === p.id ? " (active)" : ""}
+              </h2>
+              <div className="modes">
+                <span className="head">Mode</span>
+                <span className="head">Model</span>
+                <span className="head">Max tokens</span>
+                <span className="head">Temperature</span>
+                {MODE_ROWS.map((r) => (
+                  <ModeRow
+                    key={r.id}
+                    label={`${p.name} ${r.label}`}
+                    title={r.label}
+                    cfg={settings.models[p.id][r.id]}
+                    onChange={(patch) => setMode(p.id, r.id, patch)}
+                  />
+                ))}
+              </div>
+              <div className="row">
+                <button
+                  className="secondary"
+                  onClick={() =>
+                    update({
+                      models: { ...settings.models, [p.id]: structuredClone(MODE_DEFAULTS[p.id]) },
+                    })
+                  }
+                >
+                  Reset {p.name} models
+                </button>
+              </div>
+              <p className="hint">Leave temperature empty to let the model use its own default.</p>
+            </section>
+          ))}
 
           <section>
             <h2>Overlay</h2>
@@ -411,16 +493,18 @@ export default function App() {
 
 function ModeRow({
   label,
+  title,
   cfg,
   onChange,
 }: {
   label: string;
+  title: string;
   cfg: ModeConfig;
   onChange: (p: Partial<ModeConfig>) => void;
 }) {
   return (
     <>
-      <span>{label}</span>
+      <span>{title}</span>
       <input
         value={cfg.model}
         spellCheck={false}

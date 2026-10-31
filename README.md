@@ -2,7 +2,7 @@
 
 **RP chat helper.** A Windows tray app that helps a non-native English speaker roleplay in an
 online game's text chat: it translates incoming lines and turns your own words into natural
-English, ready to paste. Bring your own Anthropic API key — usage is billed to your account.
+English, ready to paste. Bring your own Anthropic or OpenAI API key — usage is billed to your account.
 
 **It never touches the game.** It only reads and writes the clipboard, listens to global hotkeys
 and shows its own windows. It never simulates input, installs input hooks, reads game memory or
@@ -91,8 +91,8 @@ npm audit
 ## Where data lives
 
 Runtime files are in `%APPDATA%\RoleplayRelay\` (settings, prompts, characters, logs).
-The API key is **not** there: it is stored in Windows Credential Manager under the
-target name `anthropic-api-key.RoleplayRelay`.
+API keys are **not** there: each provider has its own entry in Windows Credential Manager, with
+target names `anthropic-api-key.RoleplayRelay` and `openai-api-key.RoleplayRelay`.
 
 ## Disclaimer
 

@@ -9,8 +9,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-use crate::llm::anthropic;
-use crate::llm::{ApiError, LlmProvider, LlmRequest};
+use crate::llm::{anthropic, openai};
+use crate::llm::{ApiError, LlmProvider, LlmReply, LlmRequest, Provider};
 use crate::compose::{self, ComposeState};
 use crate::context::{ChatContext, Direction};
 use crate::guard::{self, GuardError, Limiter, Refusal};
@@ -28,7 +28,9 @@ const ACTION_QUICK: &str = "quick";
 /// Shared, long-lived pieces. Registered with `app.manage` at startup.
 pub struct AppState {
     pub limiter: Limiter,
-    pub client: Box<dyn LlmProvider>,
+    /// One client per provider; the provider is picked per request from settings.
+    pub anthropic: anthropic::Client,
+    pub openai: openai::Client,
     pub context: ChatContext,
     /// The long message `Ctrl+Alt+N` walks through. Replaced by every new outgoing line.
     pub parts: Mutex<Option<PartSet>>,
@@ -45,9 +47,17 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             limiter: Limiter::default(),
-            client: Box::new(anthropic::Client::new()),
+            anthropic: anthropic::Client::new(),
+            openai: openai::Client::new(),
             context: ChatContext::default(),
             parts: Mutex::new(None),
+        }
+    }
+
+    pub fn client(&self, provider: Provider) -> &dyn LlmProvider {
+        match provider {
+            Provider::Anthropic => &self.anthropic,
+            Provider::OpenAi => &self.openai,
         }
     }
 }
@@ -82,12 +92,13 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
 
     let data = paths::data_dir(app)?;
     let cfg = settings::load(app, &data)?;
-    let mode = cfg.modes.incoming.clone();
+    let provider = cfg.provider;
+    let mode = cfg.active_modes().incoming.clone();
     let lang = languages::resolve(&cfg.user_language);
 
-    let key = match secrets::get_api_key() {
+    let key = match secrets::get_api_key(provider) {
         Ok(Some(k)) => k,
-        Ok(None) => return Err(ApiError::NoKey.to_string()),
+        Ok(None) => return Err(ApiError::NoKey(provider).to_string()),
         Err(e) => return Err(e.to_string()),
     };
 
@@ -95,7 +106,14 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
     let state = app.state::<AppState>();
     let user = prompts::build_user_message(&state.context.recent(&cfg.active_character), &input);
 
-    tracing::info!(language = lang.code, "incoming request");
+    let client = state.client(provider);
+    tracing::info!(
+        provider = provider.name(),
+        model = %mode.model,
+        language = lang.code,
+        game = crate::game::active().id,
+        "incoming request"
+    );
     overlay::push(app, Kind::Busy, None, "Translating…");
 
     let request = LlmRequest {
@@ -105,13 +123,15 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
         system: &system,
         user: &user,
     };
-    let reply = state
-        .client
+    let reply = client
         .complete(&key, &request)
         .await
         .map_err(|e| e.to_string())?;
 
-    // Incoming output is only displayed, so no strict parsing: show what came back.
+    // Incoming output is only displayed, so no strict parsing: show what came back
+    // (a refusal included, as it is).
+    let refused = matches!(reply.reply, LlmReply::Refusal(_));
+    let mut truncated = reply.truncated;
     let mut translation = reply.text().trim().to_owned();
     if translation.is_empty() {
         return Err(ApiError::BadReply.to_string());
@@ -120,10 +140,11 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
         // The model sometimes drops a stray CJK character into a sentence. Ask once more;
         // if it is still there, remove it.
         tracing::warn!(language = lang.code, "foreign script in translation; retrying once");
-        if let Ok(again) = state.client.complete(&key, &request).await {
-            let again = again.text().trim().to_owned();
-            if !again.is_empty() {
-                translation = again;
+        if let Ok(again) = client.complete(&key, &request).await {
+            let text = again.text().trim().to_owned();
+            if !text.is_empty() {
+                translation = text;
+                truncated = again.truncated;
             }
         }
         translation = lang.strip_foreign_script(&translation);
@@ -131,10 +152,15 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
             return Err(ApiError::BadReply.to_string());
         }
     }
+    if truncated {
+        translation.push_str(" (cut off)");
+    }
 
-    state
-        .context
-        .push(&cfg.active_character, Direction::In, &input);
+    if !refused {
+        state
+            .context
+            .push(&cfg.active_character, Direction::In, &input);
+    }
     if cfg.debug_log_chat {
         tracing::info!(original = %input, translation = %translation, "incoming translated");
     }
@@ -170,6 +196,7 @@ fn prompt_error(e: &io::Error) -> String {
 // ---------------------------------------------------------------------------------------------
 
 const UNEXPECTED_REPLY: &str = "Unexpected reply — nothing copied";
+const CUT_OFF: &str = "Reply was cut off — nothing copied";
 const CLIPBOARD_WRITE_FAILED: &str = "Could not write to the clipboard";
 
 /// A reply that passed (or, for "Copy anyway", failed) the Output guard.
@@ -226,23 +253,26 @@ async fn generate(
 
     let data = paths::data_dir(app)?;
     let cfg = settings::load(app, &data)?;
-    let mode_cfg = match mode {
-        Mode::Incoming => cfg.modes.incoming.clone(),
-        Mode::Direct => cfg.modes.direct.clone(),
-        Mode::Rp => cfg.modes.rp.clone(),
-        Mode::Grammar => cfg.modes.grammar.clone(),
-    };
+    let provider = cfg.provider;
+    let mode_cfg = cfg.active_modes().get(mode).clone();
 
-    let key = match secrets::get_api_key() {
+    let key = match secrets::get_api_key(provider) {
         Ok(Some(k)) => k,
-        Ok(None) => return Err(ApiError::NoKey.to_string().into()),
+        Ok(None) => return Err(ApiError::NoKey(provider).to_string().into()),
         Err(e) => return Err(e.to_string().into()),
     };
 
     let lang = languages::resolve(&cfg.user_language);
     let system = load_system(app, &data, mode, &cfg.active_character, lang)?;
-    tracing::info!(language = lang.code, "outgoing request");
+    tracing::info!(
+        provider = provider.name(),
+        model = %mode_cfg.model,
+        language = lang.code,
+        game = crate::game::active().id,
+        "outgoing request"
+    );
     let state = app.state::<AppState>();
+    let client = state.client(provider);
     let user = prompts::build_user_message(&state.context.recent(&cfg.active_character), &input);
 
     let request = LlmRequest {
@@ -252,14 +282,22 @@ async fn generate(
         system: &system,
         user: &user,
     };
-    let reply = state
-        .client
+    let reply = client
         .complete(&key, &request)
         .await
         .map_err(|e| e.to_string())?;
 
     if cfg.debug_log_chat {
         tracing::info!(input = %input, reply = %reply.text(), "outgoing generated");
+    }
+    if reply.truncated {
+        return Err(Failure::from(CUT_OFF.to_owned()));
+    }
+    // A refusal is handled like an empty <en>: show the model's words, copy nothing.
+    if let LlmReply::Refusal(reason) = &reply.reply {
+        let reason = reason.trim();
+        let reason = if reason.is_empty() { "The model declined" } else { reason };
+        return Ok(Generated::Declined(reason.to_owned()));
     }
     let marker = Marker::from_setting(&cfg.split_marker);
     let mut processed =
@@ -273,9 +311,11 @@ async fn generate(
     {
         // Stray foreign-script characters in the back-translation: ask once more, then clean up.
         tracing::warn!(language = lang.code, "foreign script in back-translation; retrying once");
-        if let Ok(again) = state.client.complete(&key, &request).await {
-            if let Ok(p) = outguard::process_reply(mode, again.text(), marker, lang) {
-                processed = p;
+        if let Ok(again) = client.complete(&key, &request).await {
+            if !again.truncated && matches!(again.reply, LlmReply::Text(_)) {
+                if let Ok(p) = outguard::process_reply(mode, again.text(), marker, lang) {
+                    processed = p;
+                }
             }
         }
         processed.strip_foreign_script(lang);
@@ -495,4 +535,26 @@ pub fn quick_clipboard(app: &AppHandle) {
             Err(f) => overlay::push(&app, Kind::Error, f.raw.as_deref(), &f.message),
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn addr(p: &dyn LlmProvider) -> *const () {
+        p as *const dyn LlmProvider as *const ()
+    }
+
+    #[test]
+    fn the_provider_is_picked_per_call_not_fixed_at_startup() {
+        let state = AppState::new();
+        let a = addr(state.client(Provider::Anthropic));
+        let o = addr(state.client(Provider::OpenAi));
+        assert_ne!(a, o);
+        assert_eq!(a, addr(&state.anthropic));
+        assert_eq!(o, addr(&state.openai));
+        // Asking again, in any order, keeps returning the matching client.
+        assert_eq!(o, addr(state.client(Provider::OpenAi)));
+        assert_eq!(a, addr(state.client(Provider::Anthropic)));
+    }
 }
