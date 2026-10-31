@@ -66,7 +66,7 @@ Each service needs **credits on its own account**. Without credits you see
 
 **Create a key: Anthropic**
 
-1. Open the Anthropic Console: <https://console.anthropic.com>
+1. Open the Anthropic Console: <https://platform.claude.com>
 2. Sign in. Add a small amount of credit in the billing section.
 3. Open the API keys page and create a new key. Copy it.
 
@@ -587,7 +587,7 @@ Prices change. Check the pricing page of your provider for the current numbers.
 **OpenAI.** The small model (`gpt-6-luna`) is for `Incoming` and `Grammar`, the bigger one
 (`gpt-6.1-terra`) for `Direct` and `RP`, like Haiku and Sonnet above. This guide does not list
 OpenAI prices, because they change. To estimate: take about 1500 input tokens and 200 output tokens per
-message, and multiply by the prices on the OpenAI pricing page (<https://openai.com/api/pricing>).
+message, and multiply by the prices on the OpenAI pricing page (<https://developers.openai.com/api/docs/pricing>).
 The app asks OpenAI not to think before it answers (reasoning is off), so the answer stays short and cheap.
 It also asks OpenAI not to store your chat text.
 
@@ -596,17 +596,20 @@ section for your provider in `Settings`), at some loss of quality.
 
 **See the real numbers.**
 
-- Anthropic: the Console (<https://console.anthropic.com>) → Usage and Cost shows tokens and
+- Anthropic: the Console (<https://platform.claude.com>) → Usage and Cost shows tokens and
   money by day.
-- OpenAI: the Platform (<https://platform.openai.com>) → Usage shows tokens and money by day.
+- OpenAI: the Platform (<https://platform.openai.com/settings/organization/usage>) shows tokens and money by day.
 - Both: `logs\app.log` has one line per request with the provider, model, time in milliseconds and
   input/output tokens.
 
 **Set a spend limit.** Do this once, so a mistake cannot cost much.
 
-- Anthropic: Console → Settings → Limits. Set a monthly spend limit.
-- OpenAI: Platform → Settings → Billing → Limits. Set a monthly budget, or only add a small prepaid
-  amount of credit.
+- Anthropic: in the Console (<https://platform.claude.com>), click your organization name (bottom
+  left) → `Organization settings` → `Billing` → `Spend limits`. Click `Set limit` (or
+  `Adjust limit` if one exists) and enter a monthly amount.
+- OpenAI: open <https://platform.openai.com/settings/organization/limits>. In `Spend`, click
+  `Edit spend limit` and enter an amount. Tick `Enforce a hard limit` if you want requests to
+  stop at the limit. Click `Save`.
 
 When the limit is reached, requests fail with `No credits left on your Anthropic account` or
 `No credits left on your OpenAI account`.
