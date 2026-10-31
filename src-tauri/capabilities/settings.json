@@ -12,6 +12,8 @@
     "allow-open-data-folder",
     "allow-get-hotkey-status",
     "allow-get-autostart",
-    "allow-set-autostart"
+    "allow-set-autostart",
+    "allow-list-languages",
+    "allow-get-prompt-language-notes"
   ]
 }

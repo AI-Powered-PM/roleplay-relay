@@ -12,6 +12,8 @@ const COMMANDS: &[&str] = &[
     "get_hotkey_status",
     "get_autostart",
     "set_autostart",
+    "list_languages",
+    "get_prompt_language_notes",
     "get_compose_state",
     "compose_submit",
     "compose_copy_anyway",

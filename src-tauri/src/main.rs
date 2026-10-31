@@ -7,6 +7,7 @@ mod compose;
 mod context;
 mod guard;
 mod hotkeys;
+mod languages;
 mod logging;
 mod outguard;
 mod overlay;
@@ -95,6 +96,8 @@ fn main() {
             commands::get_hotkey_status,
             commands::get_autostart,
             commands::set_autostart,
+            commands::list_languages,
+            commands::get_prompt_language_notes,
             commands::get_compose_state,
             commands::compose_submit,
             commands::compose_copy_anyway,

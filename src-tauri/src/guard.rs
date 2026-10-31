@@ -71,6 +71,11 @@ fn looks_like_secret(text: &str) -> bool {
     let single_token = !text.chars().any(char::is_whitespace);
     single_token
         && text.chars().count() >= MIN_TOKEN_SECRET_LEN
+        // ASCII only: Chinese chat has no spaces, so a long CJK line with a digit in it
+        // ("我们8点在雷霆崖集合") is a sentence, not a key.
+        && text
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '+' | '/' | '=' | '.'))
         && text.chars().any(|c| c.is_ascii_alphabetic())
         && text.chars().any(|c| c.is_ascii_digit())
 }
@@ -235,9 +240,26 @@ mod tests {
             "Thunderbluffmulgorecairnebloodhoof", // long but letters only
             "1234567890123456789012345",          // digits only
             "LF1M tank",
+            "我们8点在雷霆崖集合",
+            "我们晚上八点在雷霆崖集合然后一起去贫瘠之地刷任务吧9点开始",
+            "Ich_habe_um_8_Uhr_Zeit_für_Euch",
+            "¿Nos_vemos_a_las_8_en_Thunder_Bluff?",
         ] {
             assert!(check_input(s).is_ok(), "{s}");
         }
+    }
+
+    #[test]
+    fn long_chinese_line_without_spaces_is_not_a_secret_but_a_key_is() {
+        let zh = "我们晚上8点在雷霆崖集合然后一起出发";
+        assert!(zh.chars().count() >= MIN_TOKEN_SECRET_LEN - 6);
+        assert!(check_input(zh).is_ok());
+        // A key with a non-ASCII character glued on is no longer a single ASCII token, but the
+        // plain key still is one.
+        assert_eq!(
+            check_input("Xk9fQ2mLp7Rt4Vw8Zb3Nc6Hd1Jg5"),
+            Err(GuardError::LooksLikeSecret)
+        );
     }
 
     #[test]

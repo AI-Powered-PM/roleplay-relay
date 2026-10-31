@@ -149,7 +149,7 @@ function Compose() {
         value={text}
         autoFocus
         disabled={busy}
-        placeholder="Type in Russian or English…"
+        placeholder="Type in your language or English…"
         spellCheck={false}
         onChange={(e) => {
           setText(e.target.value);

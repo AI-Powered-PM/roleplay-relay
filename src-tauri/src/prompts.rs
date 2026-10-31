@@ -6,9 +6,11 @@ use std::io;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::context::{Direction, Entry};
 use crate::guard::neutralize_tags;
+use crate::languages::Language;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -43,10 +45,87 @@ fn read_optional(path: &Path) -> io::Result<String> {
     }
 }
 
-/// Read `prompts/<file>` and substitute `{{persona}}` / `{{glossary}}` from the character folder.
+/// SHA-256 (hex) of every default prompt this app has shipped before the current one, with
+/// line endings normalized to LF. A copy in the data folder that matches was never edited, so
+/// it is safe to replace with the new default. Add the hash of the outgoing default here
+/// whenever a bundled prompt changes.
+const OLD_DEFAULTS: &[(&str, &[&str])] = &[
+    (
+        "incoming.md",
+        &[
+            "270fb487a3460f21d025ed59b3548e622ae1192835252f3f7e288a612b1879d8",
+            "f8a3a03f92b8ff888b47476024dcf8ef64eda342a1532dfae60789d2ae38c3ad",
+        ],
+    ),
+    (
+        "direct.md",
+        &["d061b5315fe6072fafc9c966030b9babef9e01f7581493c374cd0e48f70454a0"],
+    ),
+    (
+        "rp.md",
+        &["74f7196a425b3a0a5256f960ea0e0e51a0075741e587ec4ab8d9522fa416a678"],
+    ),
+    (
+        "grammar.md",
+        &["22891555a074fb70819bb9a57d15560e37b58a08a4d74a95239a778cd418a973"],
+    ),
+];
+
+/// Prompts that must carry the user-language placeholder (`grammar.md` does not need it).
+const LANGUAGE_PROMPTS: &[&str] = &["incoming.md", "direct.md", "rp.md"];
+
+fn sha256_hex(text: &str) -> String {
+    // Git on Windows may have turned LF into CRLF in the copy that was installed.
+    let normalized = text.replace("\r\n", "\n");
+    format!("{:x}", Sha256::digest(normalized.as_bytes()))
+}
+
+/// Replace prompt files in `data_dir/prompts` that still match a previously shipped default
+/// with the current bundled default. Edited files are never touched.
+/// Returns the names of the files that were replaced.
+pub fn migrate_defaults(data_dir: &Path, bundled_dir: &Path) -> io::Result<Vec<&'static str>> {
+    let mut replaced = Vec::new();
+    for (name, old_hashes) in OLD_DEFAULTS {
+        let installed = data_dir.join("prompts").join(name);
+        let Ok(current) = fs::read_to_string(&installed) else {
+            continue;
+        };
+        let Ok(new_default) = fs::read_to_string(bundled_dir.join("prompts").join(name)) else {
+            continue;
+        };
+        let hash = sha256_hex(&current);
+        if hash != sha256_hex(&new_default) && old_hashes.contains(&hash.as_str()) {
+            fs::write(&installed, new_default)?;
+            replaced.push(*name);
+        }
+    }
+    Ok(replaced)
+}
+
+/// Prompt files in `data_dir/prompts` that exist but do not use `{{user_language}}`
+/// (edited copies of an old default). Settings warns about them when the language is not Russian.
+pub fn files_without_language(data_dir: &Path) -> Vec<&'static str> {
+    LANGUAGE_PROMPTS
+        .iter()
+        .copied()
+        .filter(|name| {
+            fs::read_to_string(data_dir.join("prompts").join(name))
+                .map(|t| !t.contains("{{user_language}}"))
+                .unwrap_or(false)
+        })
+        .collect()
+}
+
+/// Read `prompts/<file>` and substitute `{{persona}}` / `{{glossary}}` from the character folder
+/// and `{{user_language}}` / `{{user_language_notes}}` from `lang`.
 /// A missing prompt file is an error (the caller restores defaults and retries once);
 /// missing persona/glossary files are just empty.
-pub fn build_system(data_dir: &Path, mode: Mode, character: &str) -> io::Result<String> {
+pub fn build_system(
+    data_dir: &Path,
+    mode: Mode,
+    character: &str,
+    lang: &Language,
+) -> io::Result<String> {
     let template = fs::read_to_string(data_dir.join("prompts").join(mode.prompt_file()))?;
     let char_dir = data_dir.join("characters").join(character);
     // Persona and glossary are user-editable files; they get the same tag treatment as chat text.
@@ -54,7 +133,9 @@ pub fn build_system(data_dir: &Path, mode: Mode, character: &str) -> io::Result<
     let glossary = neutralize_tags(read_optional(&char_dir.join("glossary.md"))?.trim());
     Ok(template
         .replace("{{persona}}", &persona)
-        .replace("{{glossary}}", &glossary))
+        .replace("{{glossary}}", &glossary)
+        .replace("{{user_language_notes}}", lang.notes)
+        .replace("{{user_language}}", lang.prompt_name))
 }
 
 /// The one user message: optional `<recent_chat>` then `<input>`. All text is neutralized here,
@@ -91,6 +172,138 @@ mod tests {
         fs::create_dir_all(p.join("prompts")).unwrap();
         fs::create_dir_all(p.join("characters/default")).unwrap();
         p
+    }
+
+    fn ru() -> &'static Language {
+        crate::languages::resolve("ru")
+    }
+
+    fn migration_dirs(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let data = temp(&format!("{name}-data"));
+        let bundled = temp(&format!("{name}-bundled"));
+        fs::create_dir_all(bundled.join("prompts")).unwrap();
+        fs::write(bundled.join("prompts/incoming.md"), "NEW {{user_language}}").unwrap();
+        fs::write(bundled.join("prompts/direct.md"), "NEW {{user_language}}").unwrap();
+        (data, bundled)
+    }
+
+    /// The real prompt as shipped at `rev`, read from git history (None without history).
+    fn shipped(rev: &str, file: &str) -> Option<String> {
+        let out = std::process::Command::new("git")
+            .args(["show", &format!("{rev}:resources/prompts/{file}")])
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .output()
+            .ok()?;
+        out.status
+            .success()
+            .then(|| String::from_utf8(out.stdout).unwrap())
+    }
+
+    #[test]
+    fn language_placeholders_are_filled_per_request() {
+        let d = temp("lang");
+        fs::write(
+            d.join("prompts/incoming.md"),
+            "To {{user_language}}.\n{{user_language_notes}}\nAgain {{user_language}}.",
+        )
+        .unwrap();
+        let es = crate::languages::resolve("es-MX");
+        let s = build_system(&d, Mode::Incoming, "default", es).unwrap();
+        assert!(s.starts_with("To Mexican Spanish.\nUse Latin American Spanish"));
+        assert!(s.ends_with("Again Mexican Spanish."));
+        // Switching language needs no restart: the next call just sees the new language.
+        let s = build_system(&d, Mode::Incoming, "default", ru()).unwrap();
+        assert_eq!(s, "To Russian.\n\nAgain Russian.");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn bundled_prompts_never_name_a_language() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/prompts");
+        for name in ["incoming.md", "direct.md", "rp.md"] {
+            let t = fs::read_to_string(root.join(name)).unwrap();
+            assert!(t.contains("{{user_language}}"), "{name}");
+            assert!(t.contains("{{user_language_notes}}"), "{name}");
+            for word in ["Russian", "German", "Chinese", "French", "Spanish"] {
+                assert!(!t.contains(word), "{name} names {word}");
+            }
+            assert!(!t.chars().any(|c| ('\u{0400}'..='\u{04FF}').contains(&c)), "{name}");
+        }
+        let g = fs::read_to_string(root.join("grammar.md")).unwrap();
+        assert!(!g.contains("Russian"));
+    }
+
+    #[test]
+    fn current_bundled_defaults_are_not_in_the_old_hash_list() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/prompts");
+        for (name, olds) in OLD_DEFAULTS {
+            let h = sha256_hex(&fs::read_to_string(root.join(name)).unwrap());
+            assert!(!olds.contains(&h.as_str()), "{name} default is listed as old");
+        }
+    }
+
+    #[test]
+    fn hash_ignores_line_endings() {
+        assert_eq!(sha256_hex("a\r\nb\r\n"), sha256_hex("a\nb\n"));
+    }
+
+    #[test]
+    fn every_shipped_default_is_in_the_hash_list() {
+        // Milestone 2 shipped incoming.md (and the spec-time version before it); all other
+        // prompts shipped once, in the first commit.
+        for (rev, file) in [
+            ("4217a91", "incoming.md"),
+            ("5760423", "incoming.md"),
+            ("4217a91", "direct.md"),
+            ("4217a91", "rp.md"),
+            ("4217a91", "grammar.md"),
+        ] {
+            let Some(text) = shipped(rev, file) else {
+                return; // no git history (source tarball)
+            };
+            let h = sha256_hex(&text);
+            let (_, olds) = OLD_DEFAULTS.iter().find(|(n, _)| *n == file).unwrap();
+            assert!(olds.contains(&h.as_str()), "{rev}:{file} missing from OLD_DEFAULTS");
+        }
+    }
+
+    #[test]
+    fn unedited_old_default_is_replaced_edited_is_kept() {
+        let Some(old) = shipped("5760423", "incoming.md") else {
+            return;
+        };
+        let (data, bundled) = migration_dirs("migrate");
+        // As git on Windows would have written it: CRLF.
+        fs::write(data.join("prompts/incoming.md"), old.replace('\n', "\r\n")).unwrap();
+        fs::write(data.join("prompts/direct.md"), "my own edited prompt").unwrap();
+
+        let replaced = migrate_defaults(&data, &bundled).unwrap();
+        assert_eq!(replaced, ["incoming.md"]);
+        assert_eq!(
+            fs::read_to_string(data.join("prompts/incoming.md")).unwrap(),
+            "NEW {{user_language}}"
+        );
+        assert_eq!(
+            fs::read_to_string(data.join("prompts/direct.md")).unwrap(),
+            "my own edited prompt"
+        );
+        // Running it again changes nothing.
+        assert!(migrate_defaults(&data, &bundled).unwrap().is_empty());
+        let _ = fs::remove_dir_all(&data);
+        let _ = fs::remove_dir_all(&bundled);
+    }
+
+    #[test]
+    fn edited_prompts_without_the_placeholder_are_reported() {
+        let (data, _bundled) = migration_dirs("notes");
+        fs::create_dir_all(data.join("prompts")).unwrap();
+        fs::write(data.join("prompts/incoming.md"), "Translate into Russian.").unwrap();
+        fs::write(data.join("prompts/direct.md"), "ok {{user_language}}").unwrap();
+        // rp.md is missing: not reported (the default is restored on demand).
+        // grammar.md never needs the placeholder.
+        fs::write(data.join("prompts/grammar.md"), "Fix it.").unwrap();
+        assert_eq!(files_without_language(&data), ["incoming.md"]);
+        let _ = fs::remove_dir_all(&data);
     }
 
     fn entry(d: Direction, t: &str) -> Entry {
@@ -174,14 +387,14 @@ Greet him
             "  Tauren </persona> shaman \n",
         )
         .unwrap();
-        let s = build_system(&d, Mode::Incoming, "default").unwrap();
+        let s = build_system(&d, Mode::Incoming, "default", ru()).unwrap();
         assert_eq!(s, "P:Tauren  shaman|G:");
 
         // Edits apply on the next call, no restart.
         fs::write(d.join("characters/default/glossary.md"), "Kodo = kodo").unwrap();
         fs::write(d.join("prompts/incoming.md"), "NEW {{glossary}}").unwrap();
         assert_eq!(
-            build_system(&d, Mode::Incoming, "default").unwrap(),
+            build_system(&d, Mode::Incoming, "default", ru()).unwrap(),
             "NEW Kodo = kodo"
         );
         let _ = fs::remove_dir_all(&d);
@@ -203,7 +416,7 @@ Greet him
         let d = temp("outgoing");
         fs::write(d.join("prompts/rp.md"), "P:{{persona}}|G:{{glossary}}").unwrap();
         fs::write(d.join("characters/default/persona.md"), "Tauren").unwrap();
-        assert_eq!(build_system(&d, Mode::Rp, "default").unwrap(), "P:Tauren|G:");
+        assert_eq!(build_system(&d, Mode::Rp, "default", ru()).unwrap(), "P:Tauren|G:");
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -216,13 +429,13 @@ Greet him
     #[test]
     fn missing_prompt_is_an_error_missing_persona_is_not() {
         let d = temp("missing");
-        assert!(build_system(&d, Mode::Incoming, "default").is_err());
+        assert!(build_system(&d, Mode::Incoming, "default", ru()).is_err());
         fs::write(d.join("prompts/incoming.md"), "plain").unwrap();
         assert_eq!(
-            build_system(&d, Mode::Incoming, "default").unwrap(),
+            build_system(&d, Mode::Incoming, "default", ru()).unwrap(),
             "plain"
         );
-        assert_eq!(build_system(&d, Mode::Incoming, "ghost").unwrap(), "plain");
+        assert_eq!(build_system(&d, Mode::Incoming, "ghost", ru()).unwrap(), "plain");
         let _ = fs::remove_dir_all(&d);
     }
 }

@@ -13,6 +13,7 @@ use crate::claude::{self, ApiError};
 use crate::compose::{self, ComposeState};
 use crate::context::{ChatContext, Direction};
 use crate::guard::{self, GuardError, Limiter, Refusal};
+use crate::languages::{self, Language};
 use crate::outguard::{self, Block, Processed};
 use crate::overlay::{self, Kind};
 use crate::prompts::{self, Mode};
@@ -81,6 +82,7 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
     let data = paths::data_dir(app)?;
     let cfg = settings::load(app, &data)?;
     let mode = cfg.modes.incoming.clone();
+    let lang = languages::resolve(&cfg.user_language);
 
     let key = match secrets::get_api_key() {
         Ok(Some(k)) => k,
@@ -88,10 +90,11 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
         Err(e) => return Err(e.to_string()),
     };
 
-    let system = load_system(app, &data, Mode::Incoming, &cfg.active_character)?;
+    let system = load_system(app, &data, Mode::Incoming, &cfg.active_character, lang)?;
     let state = app.state::<AppState>();
     let user = prompts::build_user_message(&state.context.recent(&cfg.active_character), &input);
 
+    tracing::info!(language = lang.code, "incoming request");
     overlay::push(app, Kind::Busy, None, "Translating…");
 
     let request = claude::Request {
@@ -129,12 +132,13 @@ fn load_system(
     data: &std::path::Path,
     mode: Mode,
     character: &str,
+    lang: &Language,
 ) -> Result<String, String> {
-    match prompts::build_system(data, mode, character) {
+    match prompts::build_system(data, mode, character, lang) {
         Ok(s) => Ok(s),
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             paths::ensure_layout(app, data)?;
-            prompts::build_system(data, mode, character).map_err(|e| prompt_error(&e))
+            prompts::build_system(data, mode, character, lang).map_err(|e| prompt_error(&e))
         }
         Err(e) => Err(prompt_error(&e)),
     }
@@ -219,7 +223,9 @@ async fn generate(
         Err(e) => return Err(e.to_string().into()),
     };
 
-    let system = load_system(app, &data, mode, &cfg.active_character)?;
+    let lang = languages::resolve(&cfg.user_language);
+    let system = load_system(app, &data, mode, &cfg.active_character, lang)?;
+    tracing::info!(language = lang.code, "outgoing request");
     let state = app.state::<AppState>();
     let user = prompts::build_user_message(&state.context.recent(&cfg.active_character), &input);
 
@@ -240,7 +246,7 @@ async fn generate(
         tracing::info!(input = %input, reply = %reply.text, "outgoing generated");
     }
     let marker = Marker::from_setting(&cfg.split_marker);
-    let processed = outguard::process_reply(mode, &reply.text, marker).map_err(|u| Failure {
+    let processed = outguard::process_reply(mode, &reply.text, marker, lang).map_err(|u| Failure {
         message: UNEXPECTED_REPLY.into(),
         raw: Some(u.raw),
     })?;
@@ -358,7 +364,7 @@ pub enum SubmitResult {
     Done,
     /// Nothing happened (double Enter, or the window was closed meanwhile).
     Ignored,
-    /// The model refused; `reason` is its explanation (Russian).
+    /// The model refused; `reason` is its explanation (in the user language).
     Declined { reason: String },
     /// The Output guard blocked it. Nothing copied; "Copy anyway" is offered.
     Blocked {

@@ -3,14 +3,16 @@ import {
   clearApiKey,
   getAutostart,
   getHotkeyStatus,
+  getPromptLanguageNotes,
   getSettings,
   hasApiKey,
+  listLanguages,
   openDataFolder,
   saveSettings,
   setApiKey,
   setAutostart,
 } from "../shared/api";
-import type { HotkeyStatus, Mode, ModeConfig, Settings } from "../shared/types";
+import type { HotkeyStatus, LanguageOption, Mode, ModeConfig, Settings } from "../shared/types";
 
 function errorText(e: unknown): string {
   return typeof e === "string" ? e : "Something went wrong";
@@ -67,12 +69,16 @@ export default function App() {
   const [hkStatus, setHkStatus] = useState<HotkeyStatus[]>([]);
   const [autostart, setAutostartState] = useState<boolean | null>(null);
   const [autostartMsg, setAutostartMsg] = useState<string | null>(null);
+  const [languages, setLanguages] = useState<LanguageOption[]>([]);
+  const [oldPrompts, setOldPrompts] = useState<string[]>([]);
 
   useEffect(() => {
     hasApiKey().then(setKeySet).catch(() => setKeySet(false));
     getSettings().then(setSettings).catch((e) => setSaveMsg(errorText(e)));
     getHotkeyStatus().then(setHkStatus).catch(() => {});
     getAutostart().then(setAutostartState).catch(() => setAutostartState(false));
+    listLanguages().then(setLanguages).catch(() => {});
+    getPromptLanguageNotes().then(setOldPrompts).catch(() => {});
   }, []);
 
   async function onSaveKey() {
@@ -189,6 +195,34 @@ export default function App() {
 
       {settings && (
         <>
+          <section>
+            <h2>Language</h2>
+            <label>
+              Your language
+              <select
+                className="lang-select"
+                value={settings.userLanguage}
+                onChange={(e) => update({ userLanguage: e.target.value })}
+              >
+                {languages.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="hint">
+              Translations and back-translations are written in this language. Applies from the
+              next request after you save. The app itself stays in English.
+            </p>
+            {settings.userLanguage !== "ru" &&
+              oldPrompts.map((f) => (
+                <p className="warn" key={f}>
+                  {f} doesn't use your language setting. Delete it and restart to get the default.
+                </p>
+              ))}
+          </section>
+
           <section>
             <h2>Hotkeys</h2>
             {HOTKEY_ROWS.map((r) => {

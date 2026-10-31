@@ -6,7 +6,7 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::actions::{self, Failure, SubmitResult};
 use crate::prompts::Mode;
-use crate::{compose, hotkeys, paths, secrets, settings};
+use crate::{compose, hotkeys, languages, paths, prompts, secrets, settings};
 
 #[tauri::command]
 pub fn has_api_key() -> Result<bool, String> {
@@ -76,6 +76,22 @@ pub fn open_data_folder(app: AppHandle, sub: String) -> Result<(), String> {
     app.opener()
         .open_path(dir.to_string_lossy(), None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+/// The `Your language` dropdown entries, in table order.
+#[tauri::command]
+pub fn list_languages() -> Vec<languages::LanguageOption> {
+    languages::options()
+}
+
+/// Prompt files that were edited and do not use `{{user_language}}` (names only).
+#[tauri::command]
+pub fn get_prompt_language_notes(app: AppHandle) -> Result<Vec<String>, String> {
+    let dir = paths::data_dir(&app)?;
+    Ok(prompts::files_without_language(&dir)
+        .into_iter()
+        .map(str::to_owned)
+        .collect())
 }
 
 // ---- compose window ----

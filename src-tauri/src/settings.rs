@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
+use crate::languages;
 use crate::prompts::Mode;
 
 const STORE_FILE: &str = "settings.json";
@@ -122,6 +123,7 @@ pub struct Settings {
     pub split_marker: String,
     pub debug_log_chat: bool,
     pub active_character: String,
+    pub user_language: String,
 }
 
 impl Default for Settings {
@@ -133,6 +135,7 @@ impl Default for Settings {
             split_marker: "(n/m)".into(),
             debug_log_chat: false,
             active_character: "default".into(),
+            user_language: languages::DEFAULT_CODE.into(),
         }
     }
 }
@@ -180,6 +183,10 @@ impl Settings {
                 .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == ' ');
         if !ok {
             self.active_character = "default".into();
+        }
+        if languages::find(&self.user_language).is_none() {
+            tracing::warn!("unknown userLanguage in settings; using {}", languages::DEFAULT_CODE);
+            self.user_language = languages::DEFAULT_CODE.into();
         }
         self
     }
@@ -273,12 +280,23 @@ mod tests {
         s.overlay.position = "middle".into();
         s.split_marker = "??".into();
         s.active_character = "../evil".into();
+        s.user_language = "klingon".into();
         let s = s.sanitized();
+        assert_eq!(s.user_language, "ru");
         assert_eq!(s.overlay.font_size, 32);
         assert_eq!(s.overlay.opacity, 0.82);
         assert_eq!(s.overlay.position, "top-right");
         assert_eq!(s.split_marker, "(n/m)");
         assert_eq!(s.active_character, "default");
+    }
+
+    #[test]
+    fn user_language_defaults_to_russian_and_keeps_valid_codes() {
+        assert_eq!(Settings::default().user_language, "ru");
+        let s: Settings = serde_json::from_str(r#"{"userLanguage":"es-MX"}"#).unwrap();
+        assert_eq!(s.sanitized().user_language, "es-MX");
+        let s: Settings = serde_json::from_str(r#"{"debugLogChat":true}"#).unwrap();
+        assert_eq!(s.user_language, "ru");
     }
 
     #[test]

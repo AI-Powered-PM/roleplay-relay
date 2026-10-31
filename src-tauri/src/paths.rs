@@ -19,6 +19,15 @@ pub fn ensure_layout(app: &AppHandle, data: &Path) -> Result<(), String> {
     }
     if let Some(src) = bundled_resources(app) {
         copy_missing(&src, data).map_err(|e| e.to_string())?;
+        // Unedited copies of older defaults (hard-coded "Russian") get the new default.
+        match crate::prompts::migrate_defaults(data, &src) {
+            Ok(files) => {
+                for f in files {
+                    tracing::info!("replaced unedited old default prompt {f}");
+                }
+            }
+            Err(e) => tracing::warn!("prompt migration failed: {}", e.kind()),
+        }
     } else {
         tracing::warn!("bundled resources folder not found; defaults not copied");
     }

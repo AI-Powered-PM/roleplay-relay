@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
+use crate::languages::Language;
 use crate::parse::{self, Tagged, Unexpected};
 use crate::prompts::Mode;
 use crate::split::{self, Marker};
@@ -19,8 +20,12 @@ pub const MAX_PARTS: usize = 4;
 pub enum Block {
     #[error("Blocked: the reply contains a link or web address")]
     Url,
-    #[error("Blocked: the reply still contains Russian letters")]
-    Cyrillic,
+    /// The active user language is still in the English result.
+    #[error("Result still has {language} text")]
+    Leftover { language: &'static str },
+    /// Letters of some non-Latin script (Cyrillic, Greek, CJK, Arabic, ...).
+    #[error("Result has non-English letters")]
+    NonLatin,
     #[error("Blocked: the reply looks like AI or translation text, not a chat line")]
     MetaText,
     #[error("Blocked: the reply is too long (more than 4 chat messages)")]
@@ -32,7 +37,7 @@ pub enum Block {
 pub enum Processed {
     /// Sanitized and passed every rule.
     Ok { en: String, back: Option<String> },
-    /// The model refused (`<en></en>`); `reason` is its Russian explanation.
+    /// The model refused (`<en></en>`); `reason` is its explanation in the user language.
     Declined { reason: String },
     /// Sanitized text that failed a rule. Not copied.
     Blocked {
@@ -48,6 +53,7 @@ pub fn process_reply(
     mode: Mode,
     reply: &str,
     marker: Marker,
+    lang: &Language,
 ) -> Result<Processed, Unexpected> {
     let (en, back) = match mode {
         Mode::Grammar => (parse::parse_plain(reply)?, None),
@@ -64,24 +70,31 @@ pub fn process_reply(
             raw: reply.trim().to_owned(),
         });
     }
-    match check(&en, marker) {
+    match check(&en, marker, lang) {
         Ok(()) => Ok(Processed::Ok { en, back }),
         Err(block) => Ok(Processed::Blocked { en, back, block }),
     }
 }
 
 /// Block rules on already-sanitized text, including the number of parts the splitter makes.
-pub fn check(text: &str, marker: Marker) -> Result<(), Block> {
-    check_text(text)?;
+pub fn check(text: &str, marker: Marker, lang: &Language) -> Result<(), Block> {
+    check_text(text, lang)?;
     check_parts(split::split(text, marker).len())
 }
 
-fn check_text(text: &str) -> Result<(), Block> {
+fn check_text(text: &str, lang: &Language) -> Result<(), Block> {
     if url_regex().is_match(text) {
         return Err(Block::Url);
     }
-    if text.chars().any(is_cyrillic) {
-        return Err(Block::Cyrillic);
+    // The language check comes first so the player sees "still has Chinese text" rather than
+    // the generic message.
+    if lang.has_leftover(text) {
+        return Err(Block::Leftover {
+            language: lang.english_name,
+        });
+    }
+    if text.chars().any(is_non_latin_letter) {
+        return Err(Block::NonLatin);
     }
     if is_meta(text) {
         return Err(Block::MetaText);
@@ -105,9 +118,15 @@ fn url_regex() -> &'static Regex {
     })
 }
 
-fn is_cyrillic(c: char) -> bool {
-    matches!(c,
-        '\u{0400}'..='\u{052F}' | '\u{1C80}'..='\u{1C8F}' | '\u{2DE0}'..='\u{2DFF}' | '\u{A640}'..='\u{A69F}')
+/// A letter outside the Latin script. Accented Latin letters (`é`, `ñ`, `ß`) are Latin.
+fn is_non_latin_letter(c: char) -> bool {
+    c.is_alphabetic()
+        && !matches!(c,
+            '\u{0000}'..='\u{024F}'     // Basic Latin, Latin-1, Latin Extended-A/B
+            | '\u{1E00}'..='\u{1EFF}'   // Latin Extended Additional
+            | '\u{2C60}'..='\u{2C7F}'   // Latin Extended-C
+            | '\u{A720}'..='\u{A7FF}'   // Latin Extended-D
+            | '\u{FB00}'..='\u{FB06}')  // Latin ligatures
 }
 
 const META_PHRASES: &[&str] = &[
@@ -170,12 +189,20 @@ fn is_pictograph(c: char) -> bool {
 mod tests {
     use super::*;
 
+    fn ru() -> &'static Language {
+        crate::languages::resolve("ru")
+    }
+
     fn check(text: &str) -> Result<(), Block> {
-        super::check(text, Marker::Numbered)
+        super::check(text, Marker::Numbered, ru())
+    }
+
+    fn check_in(code: &str, text: &str) -> Result<(), Block> {
+        super::check(text, Marker::Numbered, crate::languages::resolve(code))
     }
 
     fn process_reply(mode: Mode, reply: &str) -> Result<Processed, Unexpected> {
-        super::process_reply(mode, reply, Marker::Numbered)
+        super::process_reply(mode, reply, Marker::Numbered, ru())
     }
 
     fn ok(en: &str) -> Processed {
@@ -249,10 +276,62 @@ mod tests {
         assert_eq!(check("I need 3.5 gold, no more."), Ok(()));
     }
 
+    const RU_LEFTOVER: Block = Block::Leftover { language: "Russian" };
+
     #[test]
     fn leftover_cyrillic_is_blocked() {
-        assert_eq!(check("Well met, друг"), Err(Block::Cyrillic));
-        assert_eq!(check("Ё"), Err(Block::Cyrillic));
+        assert_eq!(check("Well met, друг"), Err(RU_LEFTOVER));
+        assert_eq!(check("Ё"), Err(RU_LEFTOVER));
+    }
+
+    #[test]
+    fn leftover_blocks_name_the_language_and_use_the_spec_wording() {
+        let cases = [
+            ("de", "Danke, ich bin bereit", "Result still has German text"),
+            ("de", "Straße", "Result still has German text"),
+            ("zh-CN", "Well met， friend", "Result still has Chinese text"),
+            ("zh-CN", "你好", "Result still has Chinese text"),
+            ("fr", "merci, je suis prêt", "Result still has French text"),
+            ("es-MX", "¿Ready", "Result still has Spanish text"),
+            ("es-MX", "mañana", "Result still has Spanish text"),
+            ("es-MX", "hola amigo, gracias", "Result still has Spanish text"),
+            ("ru", "привет", "Result still has Russian text"),
+        ];
+        for (code, text, message) in cases {
+            let err = check_in(code, text).unwrap_err();
+            assert_eq!(err.to_string(), message, "{code}: {text}");
+        }
+    }
+
+    #[test]
+    fn language_check_runs_before_the_generic_script_check() {
+        // A zh-CN user sees the Chinese message; a ru user with Chinese text sees the generic one.
+        assert!(matches!(check_in("zh-CN", "你好"), Err(Block::Leftover { .. })));
+        assert_eq!(check_in("ru", "你好"), Err(Block::NonLatin));
+        assert_eq!(check_in("de", "привет"), Err(Block::NonLatin));
+        assert_eq!(check_in("fr", "Hello Ω"), Err(Block::NonLatin));
+        assert_eq!(Block::NonLatin.to_string(), "Result has non-English letters");
+    }
+
+    #[test]
+    fn accented_latin_letters_are_not_non_latin() {
+        // Under ru the generic check must let Latin loanwords through.
+        assert_eq!(check_in("ru", "A café and a naïve fiancé, señor Müller"), Ok(()));
+    }
+
+    #[test]
+    fn real_rp_lines_pass_for_every_language() {
+        let lines = [
+            "May the Earth Mother guide your steps, stranger.",
+            "nods slowly and settles beside the fire, eyes on the flames.",
+            "smiles faintly. \"The wind speaks of rain.\"",
+            "Will you share a meal with us before the hunt?",
+        ];
+        for lang in crate::languages::all() {
+            for line in lines {
+                assert_eq!(check_in(lang.code, line), Ok(()), "{}: {line}", lang.code);
+            }
+        }
     }
 
     #[test]
@@ -289,20 +368,21 @@ mod tests {
         assert_eq!(check(four.trim()), Ok(()));
         assert_eq!(check(five.trim()), Err(Block::TooManyParts));
         assert_eq!(
-            super::check(five.trim(), Marker::None),
+            super::check(five.trim(), Marker::None, ru()),
             Err(Block::TooManyParts)
         );
     }
 
     #[test]
-    fn rule_order_is_url_then_cyrillic_then_meta() {
+    fn rule_order_is_url_then_language_then_script_then_meta() {
         assert_eq!(check("claude друг gold.com"), Err(Block::Url));
-        assert_eq!(check("claude друг"), Err(Block::Cyrillic));
+        assert_eq!(check("claude друг"), Err(RU_LEFTOVER));
+        assert_eq!(check_in("de", "claude друг"), Err(Block::NonLatin));
     }
 
     #[test]
     fn every_block_has_a_message() {
-        for b in [Block::Url, Block::Cyrillic, Block::MetaText, Block::TooManyParts] {
+        for b in [Block::Url, Block::MetaText, Block::TooManyParts] {
             assert!(b.to_string().starts_with("Blocked: "));
         }
     }
@@ -386,12 +466,12 @@ mod tests {
     }
 
     #[test]
-    fn output_never_contains_pipe_newline_emoji_or_cyrillic_when_ok() {
+    fn output_never_contains_pipe_newline_emoji_or_non_latin_when_ok() {
         let r = process_reply(Mode::Direct, "<en>a|b\nc 😀 d</en>").unwrap();
         let Processed::Ok { en, .. } = r else {
             panic!("expected ok, got {r:?}");
         };
         assert!(!en.contains(['|', '\n', '😀']));
-        assert!(!en.chars().any(is_cyrillic));
+        assert!(!en.chars().any(is_non_latin_letter));
     }
 }

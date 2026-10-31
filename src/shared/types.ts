@@ -21,6 +21,13 @@ export interface Settings {
   splitMarker: "(n/m)" | "…" | "none";
   debugLogChat: boolean;
   activeCharacter: string;
+  /** Language code from list_languages(), e.g. "ru". */
+  userLanguage: string;
+}
+
+export interface LanguageOption {
+  code: string;
+  label: string;
 }
 
 export type OutgoingMode = "direct" | "rp" | "grammar";

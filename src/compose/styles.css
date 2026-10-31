@@ -5,7 +5,7 @@ body,
   height: 100%;
   background: transparent;
   overflow: hidden;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   color: #f1e8d8;
 }
 
