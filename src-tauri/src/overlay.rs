@@ -39,6 +39,10 @@ pub struct Update {
     /// Source text, shown dimmed and clamped to two lines.
     pub original: Option<String>,
     pub text: String,
+    /// Russian back-translation of an outgoing line, shown under it.
+    pub back: Option<String>,
+    /// Short line above everything else, e.g. "Copied to clipboard".
+    pub note: Option<String>,
     pub style: Style,
 }
 
@@ -91,16 +95,42 @@ fn load_settings(app: &AppHandle) -> settings::Settings {
 /// Show an update. Never activates the window.
 pub fn push(app: &AppHandle, kind: Kind, original: Option<&str>, text: &str) {
     let s = load_settings(app);
-    let update = Update {
-        kind,
-        original: original.map(|o| truncate(o, 240)),
-        text: text.to_owned(),
-        style: style_from(&s),
-    };
+    push_update(
+        app,
+        Update {
+            kind,
+            original: original.map(|o| truncate(o, 240)),
+            text: text.to_owned(),
+            back: None,
+            note: None,
+            style: style_from(&s),
+        },
+    );
+}
+
+/// An outgoing line that is now in the clipboard: the text, its back-translation (if any)
+/// and a note saying so. Showing it here is what lets the player check what they will paste.
+pub fn push_outgoing(app: &AppHandle, text: &str, back: Option<&str>, note: &str) {
+    let s = load_settings(app);
+    push_update(
+        app,
+        Update {
+            kind: Kind::Result,
+            original: None,
+            text: text.to_owned(),
+            back: back.map(str::to_owned),
+            note: Some(note.to_owned()),
+            style: style_from(&s),
+        },
+    );
+}
+
+fn push_update(app: &AppHandle, update: Update) {
+    let s = load_settings(app);
     let Some(state) = app.try_state::<OverlayState>() else {
         return;
     };
-    if kind != Kind::Busy {
+    if update.kind != Kind::Busy {
         *state.last.lock().unwrap_or_else(|e| e.into_inner()) = Some(update.clone());
     }
     present(app, &update, &s);
@@ -152,6 +182,8 @@ pub fn toggle(app: &AppHandle) {
         kind: Kind::Info,
         original: None,
         text: "Nothing to show yet".into(),
+        back: None,
+        note: None,
         style: style_from(&s),
     });
     present(app, &update, &s);
@@ -297,6 +329,8 @@ mod tests {
             kind: Kind::Result,
             original: None,
             text: "t".into(),
+            back: None,
+            note: None,
             style: Style {
                 font_size: 16,
                 opacity: 0.8,

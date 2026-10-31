@@ -22,3 +22,21 @@ export interface Settings {
   debugLogChat: boolean;
   activeCharacter: string;
 }
+
+export type OutgoingMode = "direct" | "rp" | "grammar";
+
+export interface ComposeInfo {
+  mode: OutgoingMode;
+}
+
+export interface ComposeFailure {
+  message: string;
+  /** The model's raw reply when it was not in the expected shape (shown dimmed). */
+  raw: string | null;
+}
+
+export type SubmitResult =
+  | { kind: "done" }
+  | { kind: "ignored" }
+  | { kind: "declined"; reason: string }
+  | { kind: "blocked"; en: string; back: string | null; reason: string };

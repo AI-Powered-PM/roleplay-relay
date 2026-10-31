@@ -3,15 +3,19 @@
 mod actions;
 mod claude;
 mod commands;
+mod compose;
 mod context;
 mod guard;
 mod hotkeys;
 mod logging;
+mod outguard;
 mod overlay;
+mod parse;
 mod paths;
 mod prompts;
 mod secrets;
 mod settings;
+mod split;
 
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::TrayIconBuilder;
@@ -74,6 +78,7 @@ fn main() {
         .plugin(hotkeys::plugin())
         .manage(actions::AppState::new())
         .manage(overlay::OverlayState::default())
+        .manage(compose::ComposeState::default())
         .manage(hotkeys::Registered::default())
         .invoke_handler(tauri::generate_handler![
             commands::has_api_key,
@@ -82,6 +87,10 @@ fn main() {
             commands::get_settings,
             commands::save_settings,
             commands::open_data_folder,
+            commands::get_compose_state,
+            commands::compose_submit,
+            commands::compose_copy_anyway,
+            commands::compose_cancel,
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -104,6 +113,13 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // Alt+F4 on compose must not destroy it: close it the normal way (focus goes back).
+            if window.label() == "compose" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    compose::close(window.app_handle());
+                }
+            }
             // Closing Settings hides it; the app lives in the tray.
             if window.label() == "settings" {
                 if let WindowEvent::CloseRequested { api, .. } = event {

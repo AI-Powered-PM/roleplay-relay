@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-compose-cancel"
+description = "Enables the compose_cancel command without any pre-configured scope."
+commands.allow = ["compose_cancel"]
+
+[[permission]]
+identifier = "deny-compose-cancel"
+description = "Denies the compose_cancel command without any pre-configured scope."
+commands.deny = ["compose_cancel"]

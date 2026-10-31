@@ -5,19 +5,33 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
+
 use crate::context::{Direction, Entry};
 use crate::guard::neutralize_tags;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Mode {
     Incoming,
+    Direct,
+    Rp,
+    Grammar,
 }
 
 impl Mode {
     pub fn prompt_file(self) -> &'static str {
         match self {
             Mode::Incoming => "incoming.md",
+            Mode::Direct => "direct.md",
+            Mode::Rp => "rp.md",
+            Mode::Grammar => "grammar.md",
         }
+    }
+
+    /// Direct, RP and Grammar produce text the player sends; Incoming only translates.
+    pub fn is_outgoing(self) -> bool {
+        self != Mode::Incoming
     }
 }
 
@@ -123,8 +137,6 @@ mod tests {
     #[test]
     fn fills_placeholders_and_rereads_files() {
         let d = temp("fill");
-        fs::write(d.join("prompts/rp.md"), "P:{{persona}}|G:{{glossary}}").unwrap();
-        // rp is not a Mode yet; incoming.md is used to check substitution.
         fs::write(
             d.join("prompts/incoming.md"),
             "P:{{persona}}|G:{{glossary}}",
@@ -146,6 +158,32 @@ mod tests {
             "NEW Kodo = kodo"
         );
         let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn every_mode_has_its_own_prompt_file() {
+        let files: Vec<_> = [Mode::Incoming, Mode::Direct, Mode::Rp, Mode::Grammar]
+            .iter()
+            .map(|m| m.prompt_file())
+            .collect();
+        assert_eq!(files, ["incoming.md", "direct.md", "rp.md", "grammar.md"]);
+        assert!(!Mode::Incoming.is_outgoing());
+        assert!(Mode::Direct.is_outgoing() && Mode::Rp.is_outgoing() && Mode::Grammar.is_outgoing());
+    }
+
+    #[test]
+    fn outgoing_modes_fill_placeholders() {
+        let d = temp("outgoing");
+        fs::write(d.join("prompts/rp.md"), "P:{{persona}}|G:{{glossary}}").unwrap();
+        fs::write(d.join("characters/default/persona.md"), "Tauren").unwrap();
+        assert_eq!(build_system(&d, Mode::Rp, "default").unwrap(), "P:Tauren|G:");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn mode_names_match_the_frontend() {
+        assert_eq!(serde_json::to_string(&Mode::Rp).unwrap(), "\"rp\"");
+        assert_eq!(serde_json::from_str::<Mode>("\"grammar\"").unwrap(), Mode::Grammar);
     }
 
     #[test]

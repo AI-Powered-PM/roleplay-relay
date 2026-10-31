@@ -8,11 +8,13 @@ use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::overlay::{self, Kind};
-use crate::{actions, paths, settings};
+use crate::{actions, compose, paths, settings};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Action {
     Translate,
+    Compose,
+    Quick,
     ToggleOverlay,
 }
 
@@ -36,6 +38,14 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
                 .map(|(_, a)| *a);
             match action {
                 Some(Action::Translate) => actions::translate_incoming(app),
+                Some(Action::Compose) => {
+                    // A held key auto-repeats; open once per press.
+                    let state = app.state::<actions::AppState>();
+                    if state.limiter.debounce("compose-open", Instant::now()) {
+                        compose::open(app);
+                    }
+                }
+                Some(Action::Quick) => actions::quick_clipboard(app),
                 Some(Action::ToggleOverlay) => {
                     // Auto-repeat while the keys are held would flip the overlay on and off.
                     let state = app.state::<actions::AppState>();
@@ -57,6 +67,8 @@ pub fn register_all(app: &AppHandle) {
         .unwrap_or_default();
     let wanted = [
         (cfg.hotkeys.translate, Action::Translate),
+        (cfg.hotkeys.compose, Action::Compose),
+        (cfg.hotkeys.quick, Action::Quick),
         (cfg.hotkeys.overlay_toggle, Action::ToggleOverlay),
     ];
 

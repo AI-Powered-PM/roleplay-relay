@@ -9,6 +9,10 @@ const COMMANDS: &[&str] = &[
     "get_settings",
     "save_settings",
     "open_data_folder",
+    "get_compose_state",
+    "compose_submit",
+    "compose_copy_anyway",
+    "compose_cancel",
 ];
 
 fn main() {

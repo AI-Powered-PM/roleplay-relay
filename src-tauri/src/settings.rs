@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
+use crate::prompts::Mode;
+
 const STORE_FILE: &str = "settings.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -174,6 +176,29 @@ pub fn save(app: &AppHandle, data_dir: &Path, settings: Settings) -> Result<(), 
             store.set(k, v);
         }
     }
+    store.save().map_err(|e| e.to_string())
+}
+
+/// The last outgoing mode lives under its own key (not in `Settings`), so saving the Settings
+/// form can never overwrite it.
+const LAST_MODE_KEY: &str = "lastOutgoingMode";
+
+/// Falls back to Direct when nothing valid is stored.
+pub fn load_last_mode(app: &AppHandle, data_dir: &Path) -> Mode {
+    open_store(app, data_dir)
+        .ok()
+        .and_then(|s| s.get(LAST_MODE_KEY))
+        .and_then(|v| serde_json::from_value::<Mode>(v).ok())
+        .filter(|m| m.is_outgoing())
+        .unwrap_or(Mode::Direct)
+}
+
+pub fn save_last_mode(app: &AppHandle, data_dir: &Path, mode: Mode) -> Result<(), String> {
+    let store = open_store(app, data_dir)?;
+    store.set(
+        LAST_MODE_KEY,
+        serde_json::to_value(mode).map_err(|e| e.to_string())?,
+    );
     store.save().map_err(|e| e.to_string())
 }
 

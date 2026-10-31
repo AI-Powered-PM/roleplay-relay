@@ -3,9 +3,10 @@
 This guide is for players. It uses short sentences. Names of buttons and messages are written
 in `code style` exactly as they appear on screen.
 
-> Status: this guide covers translating incoming chat (hotkey `Ctrl+Alt+T`) and the overlay.
-> Writing your own messages (compose, quick mode, long messages) comes later. Sections that
-> are not ready yet say so.
+> Status: this guide covers translating incoming chat (`Ctrl+Alt+T`), the overlay, and writing
+> your own messages (compose window `Ctrl+Alt+R` and quick mode `Ctrl+Alt+E`).
+> Long messages (more than 255 characters) and `Ctrl+Alt+N` come later. Sections that are not
+> ready yet say so.
 
 ## 1. What it is and what it never does
 
@@ -130,6 +131,84 @@ Good to know:
 - If you press the hotkey again while a translation is running, or hold the key down,
   the extra presses are ignored. One press = one request.
 
+### Write your own message: compose (`Ctrl+Alt+R`)
+
+Use this when you want to say something in English but you think in Russian.
+
+1. Press `Ctrl+Alt+R`. A small dark window opens in the middle of the screen. The cursor is
+   already in the text box (hint: `Type in Russian or English…`).
+2. Pick a mode (see below). The window remembers the last mode you used.
+3. Type your message. Press `Enter` to send it. (`Shift+Enter` makes a new line.)
+4. A small spinner turns at the top right of the window while the app works.
+5. When it is ready, the window closes **and the window that was in front before comes back**
+   (your game). The English text is now in your clipboard. In the game, open the chat box,
+   press `Ctrl+V`, read the text, and press `Enter` yourself.
+6. At the same time the overlay shows what was copied:
+   - a line `Copied — paste it in the game`,
+   - the English text,
+   - under it, a Russian back-translation, so you can check the meaning.
+
+Keys in the compose window:
+
+| Key | What it does |
+|---|---|
+| `Enter` | Send |
+| `Shift+Enter` | New line |
+| `Tab` | Next mode |
+| `Ctrl+1`, `Ctrl+2`, `Ctrl+3` | `Direct`, `RP`, `Grammar` |
+| `Esc` | Close without doing anything |
+
+**The three modes**
+
+| Mode | Use it when | Example |
+|---|---|---|
+| `Direct` | You want a plain, natural English line. No role-play style. Good for group chat, trade, dungeons. | `Го в инст, я хил` → `Let's go to the dungeon, I'm the healer.` |
+| `RP` | You want your character to speak in character (uses your `persona.md`, section 8). Emotes are possible. | `Приветствую, путник` → a line in the style of your character |
+| `Grammar` | You already wrote in English and only want mistakes fixed. Fastest and cheapest. | `He go to town yesterday` → `He went to town yesterday.` |
+
+In `Grammar` mode the overlay shows only the corrected text. There is no back-translation.
+In `Direct` and `RP`, if the model gives no back-translation, the overlay shows
+`(no back-translation)`.
+
+**If something goes wrong, the window stays open and your text stays in the box.** You see
+a red message under the box (section 9). Fix the problem and press `Enter` again.
+If you press `Esc` while the app is still working, the answer is thrown away and nothing is
+copied.
+
+**If the safety check blocks the answer.** The window shows the text, a red reason, and a
+button `Copy anyway`. Nothing is in your clipboard yet. Read the reason (section 9). You can
+change your message and press `Enter` again, or click `Copy anyway` if you are sure. After
+`Copy anyway` the text is copied, the window closes and the overlay shows it.
+
+**If the model refuses.** You see `Not written:` and a short reason in Russian. Nothing is
+copied. Change your message.
+
+The app removes some things from every English line, without telling you: new lines, emoji,
+hidden characters and the `|` sign. (The game uses `|` for its own codes, and a broken code
+can get a message rejected.)
+
+The game allows 255 characters per message. Splitting long text is not ready yet. If the
+result is longer, the overlay adds `Longer than 255 characters — splitting comes in the next update`.
+For now the **whole** text is copied and the game will cut it. Ask for a shorter message.
+
+### Quick mode: clipboard in, English out (`Ctrl+Alt+E`)
+
+Use this when you typed (or pasted) text into the game's chat box and copied it yourself.
+
+1. Copy your text with `Ctrl+C`.
+2. Press `Ctrl+Alt+E`. The overlay says `Working…`.
+3. The app uses the **last mode** you used in the compose window (`Direct` if you never used it).
+4. The clipboard now holds the English text, and the overlay shows it (same as compose).
+5. Paste it in the game and press `Enter` yourself.
+
+If the safety check blocks the answer, the overlay is red and says why, and your clipboard is
+**not changed**. There is no `Copy anyway` here. Open compose (`Ctrl+Alt+R`) and try again.
+
+### What the app remembers
+
+The app remembers your last English lines and the lines you translated (10 in total, until
+you quit). It sends them with the next request, so the model knows who you talk to.
+
 ### The overlay
 
 - The overlay never takes focus and the mouse goes through it. You can keep playing.
@@ -138,16 +217,18 @@ Good to know:
   A full history list comes in a later version.
 - Change corner, size and look in `Settings` (see section 7).
 
-_Writing your own messages (compose, quick mode, long messages) is coming in a later version._
+_Long messages and `Ctrl+Alt+N` are coming in a later version._
 
 ## 6. Hotkey cheat sheet
 
 | Hotkey | Action | Result goes to |
 |---|---|---|
 | `Ctrl+Alt+T` | Translate the copied chat line (English → Russian) | Overlay. Clipboard is not changed. |
+| `Ctrl+Alt+R` | Open the compose window and write a message | Clipboard (English text) and overlay (text + back-translation) |
+| `Ctrl+Alt+E` | Quick mode: turn the copied text into English, with the last compose mode | Clipboard (English text) and overlay |
 | `Ctrl+Alt+O` | Show or hide the overlay | Overlay |
 
-More hotkeys (`Ctrl+Alt+R`, `Ctrl+Alt+E`, `Ctrl+Alt+N`) come with later versions.
+`Ctrl+Alt+N` (next part of a long message) comes with a later version.
 
 If a hotkey is already used by another app, the overlay shows
 `Hotkey not available (used by another app?)` with the key name. Close the other app or
@@ -163,7 +244,8 @@ _Coming in a later milestone._
 
 ## 9. Error and block messages
 
-These appear in the overlay (red text) when `Ctrl+Alt+T` cannot finish.
+These appear in the overlay (red text) when `Ctrl+Alt+T` or `Ctrl+Alt+E` cannot finish, and
+in red under the text box in the compose window.
 
 **Problems with the text you copied** (nothing is sent to the internet):
 
@@ -172,6 +254,8 @@ These appear in the overlay (red text) when `Ctrl+Alt+T` cannot finish.
 | `Clipboard is empty` | There is no text in the clipboard (it may hold a picture). | Copy a chat line first. |
 | `Text too long` | The text is longer than 1500 characters. | Copy a shorter part. |
 | `Clipboard looks like a key/password — not sent` | The text looks like an API key or password. The app refuses to send it. | Copy something else. Clear the key from your clipboard (see section 3). |
+| `Text looks like a key/password — not sent` | Same, but for text typed in the compose window. | Remove the key or password from your message. |
+| `Type a message first` | The compose text box is empty. | Type something. |
 | `Slow down` | More than 30 requests in one minute. | Wait a little. |
 
 **Problems with the Claude service:**
@@ -184,6 +268,7 @@ These appear in the overlay (red text) when `Ctrl+Alt+T` cannot finish.
 | `Service overloaded, try again` | The service is busy or has an error. | Try again in a minute. |
 | `No response from server` | No answer in 20 seconds, or no internet. | Check your internet and try again. |
 | `Unexpected reply from server` | The answer was empty or in a wrong format. | Try again. If it repeats, send `logs\app.log` (section 10). |
+| `Unexpected reply — nothing copied` | In `Direct`, `RP` or `Grammar`, the answer did not have the English text in the required format (or had only emoji). The raw answer is shown dimmed under the message. **Nothing was copied.** | Press `Enter` again. If it repeats, you may have changed a prompt file by mistake (section 8). Delete it to get the default back. |
 | `Request failed (HTTP 400)` | The service rejected the request. The number can differ. Often a wrong model name or a bad setting. | Check the model names. If you changed settings by hand, restore the defaults. |
 
 **Other:**
@@ -191,12 +276,31 @@ These appear in the overlay (red text) when `Ctrl+Alt+T` cannot finish.
 | Message | What it means | What to do |
 |---|---|---|
 | `Could not read the prompt file — see Settings → Open prompts folder` | A prompt file exists but cannot be read. | Open the prompts folder. Check the file is not locked. Delete the broken file; the app makes a new one on the next request. |
+| `Could not write to the clipboard` | Another program holds the Windows clipboard. | Try again in a moment. |
+| `Nothing to copy` | You clicked `Copy anyway` but the blocked text is gone (for example you pressed `Esc` first). | Send your message again. |
 | `Could not access Windows Credential Manager` | Windows did not give the key to the app. | Restart the app. If it continues, restart Windows. |
 | `Hotkey not available (used by another app?)` | Another app uses this key combination. | Close that app. |
 
-The messages for blocked replies (when you write your own text) come with the compose feature.
+**Blocked replies** (when you write your own text). The answer failed the safety check, so
+nothing is copied. In compose you see the text, the reason, and `Copy anyway`. In quick mode
+the overlay shows the reason followed by
+`— open compose (Ctrl+Alt+R) to write it yourself`.
+
+| Message | What it means | What to do, and is `Copy anyway` OK? |
+|---|---|---|
+| `Blocked: the reply contains a link or web address` | The English text has `http`, `www.`, or a name like `site.com` (also `.net .org .gg .io .ru .xyz .shop`). Gold sellers and phishing use links, and other players report them. | Change your message. `Copy anyway` is almost never a good idea. It can be a false alarm only if a word and a dot-ending touch, like `end.net`. |
+| `Blocked: the reply still contains Russian letters` | The English text has Cyrillic letters left. | Change your message. `Copy anyway` is OK only if the Russian word is on purpose. |
+| `Blocked: the reply looks like AI or translation text, not a chat line` | The text has words like `as an ai`, `language model`, `claude`, `anthropic`, `translation:`, or a tag. The model probably talked to you instead of writing your line. | Press `Enter` again or change your message. Use `Copy anyway` only if these words are really part of what you want to say. |
+| `Blocked: the reply is too long (more than 4 chat messages)` | The text would need more than 4 chat messages. | Write a shorter message. (This check starts to work when long-message splitting arrives in a later version.) |
+
+**Nothing is copied** also when the model refuses (`Not written:` and the reason).
 
 ## 10. Troubleshooting
+
+**Compose does not give the game back focus.** After you send a message, the app brings back the
+window that was in front when you pressed `Ctrl+Alt+R`. If the game does not react to the
+keyboard, click once in the game window. Use borderless (windowed fullscreen) mode (section 4).
+If it keeps happening, send `logs\app.log` and say which window mode you use.
 
 **The hotkey does nothing.** Look for `Hotkey not available…` (press `Ctrl+Alt+O` and check).
 Another app may use the same keys. Also check that the app is running (tray icon).

@@ -9,8 +9,6 @@ const MAX_LINE_CHARS: usize = 300;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     In,
-    /// Used by the outgoing flows (milestone 3).
-    #[allow(dead_code)]
     Out,
 }
 

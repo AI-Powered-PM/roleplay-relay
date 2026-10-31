@@ -9,6 +9,8 @@ interface OverlayUpdate {
   kind: Kind;
   original: string | null;
   text: string;
+  back: string | null;
+  note: string | null;
   style: {
     fontSize: number;
     opacity: number;
@@ -27,7 +29,7 @@ function Overlay() {
   }, []);
 
   if (!update) return null;
-  const { kind, original, text, style } = update;
+  const { kind, original, text, back, note, style } = update;
   const bottom = style.position.startsWith("bottom");
   return (
     <div className={`stage ${bottom ? "bottom" : "top"}`}>
@@ -38,8 +40,10 @@ function Overlay() {
           background: `rgba(15, 15, 20, ${style.opacity})`,
         }}
       >
+        {note && <div className="note">{note}</div>}
         {original && <div className="original">{original}</div>}
         <div className="text">{text}</div>
+        {back && <div className="back">{back}</div>}
       </div>
     </div>
   );

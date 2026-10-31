@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "compose-window",
-  "description": "Compose: event listening only for now. compose_submit, compose_cancel and get_compose_state are added with milestone 3.",
+  "description": "Compose: listen to compose://open and call the four compose commands. compose_copy_anyway takes no text; it can only copy the result Rust is holding.",
   "windows": ["compose"],
-  "permissions": ["core:event:allow-listen"]
+  "permissions": [
+    "core:event:allow-listen",
+    "allow-get-compose-state",
+    "allow-compose-submit",
+    "allow-compose-copy-anyway",
+    "allow-compose-cancel"
+  ]
 }
