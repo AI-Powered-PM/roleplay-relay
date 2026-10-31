@@ -11,6 +11,8 @@ interface OverlayUpdate {
   text: string;
   back: string | null;
   note: string | null;
+  parts: string[] | null;
+  current: number | null;
   style: {
     fontSize: number;
     opacity: number;
@@ -29,7 +31,7 @@ function Overlay() {
   }, []);
 
   if (!update) return null;
-  const { kind, original, text, back, note, style } = update;
+  const { kind, original, text, back, note, parts, current, style } = update;
   const bottom = style.position.startsWith("bottom");
   return (
     <div className={`stage ${bottom ? "bottom" : "top"}`}>
@@ -42,7 +44,20 @@ function Overlay() {
       >
         {note && <div className="note">{note}</div>}
         {original && <div className="original">{original}</div>}
-        <div className="text">{text}</div>
+        {parts && parts.length > 1 ? (
+          <ol className="parts">
+            {parts.map((part, i) => (
+              <li
+                key={i}
+                className={i === current ? "part current" : i < (current ?? 0) ? "part done" : "part"}
+              >
+                {part}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="text">{text}</div>
+        )}
         {back && <div className="back">{back}</div>}
       </div>
     </div>

@@ -43,6 +43,10 @@ pub struct Update {
     pub back: Option<String>,
     /// Short line above everything else, e.g. "Copied to clipboard".
     pub note: Option<String>,
+    /// All parts of a long message, when it was split. `text` then holds the whole message.
+    pub parts: Option<Vec<String>>,
+    /// Index into `parts` of the part that is in the clipboard now.
+    pub current: Option<usize>,
     pub style: Style,
 }
 
@@ -103,6 +107,8 @@ pub fn push(app: &AppHandle, kind: Kind, original: Option<&str>, text: &str) {
             text: text.to_owned(),
             back: None,
             note: None,
+            parts: None,
+            current: None,
             style: style_from(&s),
         },
     );
@@ -110,7 +116,13 @@ pub fn push(app: &AppHandle, kind: Kind, original: Option<&str>, text: &str) {
 
 /// An outgoing line that is now in the clipboard: the text, its back-translation (if any)
 /// and a note saying so. Showing it here is what lets the player check what they will paste.
-pub fn push_outgoing(app: &AppHandle, text: &str, back: Option<&str>, note: &str) {
+pub fn push_outgoing(
+    app: &AppHandle,
+    text: &str,
+    back: Option<&str>,
+    note: &str,
+    parts: Option<(&[String], usize)>,
+) {
     let s = load_settings(app);
     push_update(
         app,
@@ -120,6 +132,8 @@ pub fn push_outgoing(app: &AppHandle, text: &str, back: Option<&str>, note: &str
             text: text.to_owned(),
             back: back.map(str::to_owned),
             note: Some(note.to_owned()),
+            parts: parts.map(|(p, _)| p.to_vec()),
+            current: parts.map(|(_, i)| i),
             style: style_from(&s),
         },
     );
@@ -184,6 +198,8 @@ pub fn toggle(app: &AppHandle) {
         text: "Nothing to show yet".into(),
         back: None,
         note: None,
+        parts: None,
+        current: None,
         style: style_from(&s),
     });
     present(app, &update, &s);
@@ -331,6 +347,8 @@ mod tests {
             text: "t".into(),
             back: None,
             note: None,
+            parts: None,
+            current: None,
             style: Style {
                 font_size: 16,
                 opacity: 0.8,

@@ -135,6 +135,17 @@ export default function App() {
               }
             />
           </label>
+          <label>
+            Split marker
+            <select
+              value={settings.splitMarker}
+              onChange={(e) => update({ splitMarker: e.target.value as Settings["splitMarker"] })}
+            >
+              <option value="(n/m)">(n/m)</option>
+              <option value="…">…</option>
+              <option value="none">none</option>
+            </select>
+          </label>
           <label className="check">
             <input
               type="checkbox"

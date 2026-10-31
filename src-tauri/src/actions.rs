@@ -2,6 +2,7 @@
 //! outgoing flows - compose and quick clipboard mode (milestone 3).
 
 use std::io;
+use std::sync::Mutex;
 use std::time::Instant;
 
 use serde::Serialize;
@@ -15,7 +16,8 @@ use crate::guard::{self, GuardError, Limiter, Refusal};
 use crate::outguard::{self, Block, Processed};
 use crate::overlay::{self, Kind};
 use crate::prompts::{self, Mode};
-use crate::{paths, secrets, settings, split};
+use crate::split::{self, Marker};
+use crate::{paths, secrets, settings};
 
 const ACTION_INCOMING: &str = "incoming";
 const ACTION_COMPOSE: &str = "compose";
@@ -26,6 +28,15 @@ pub struct AppState {
     pub limiter: Limiter,
     pub client: claude::Client,
     pub context: ChatContext,
+    /// The long message `Ctrl+Alt+N` walks through. Replaced by every new outgoing line.
+    pub parts: Mutex<Option<PartSet>>,
+}
+
+/// The split parts of the last outgoing line and which one is in the clipboard.
+#[derive(Debug, Clone)]
+pub struct PartSet {
+    pub parts: Vec<String>,
+    pub current: usize,
 }
 
 impl AppState {
@@ -34,6 +45,7 @@ impl AppState {
             limiter: Limiter::default(),
             client: claude::Client::new(),
             context: ChatContext::default(),
+            parts: Mutex::new(None),
         }
     }
 }
@@ -148,6 +160,7 @@ pub struct Draft {
     pub back: Option<String>,
     pub character: String,
     pub mode: Mode,
+    pub marker: Marker,
 }
 
 enum Generated {
@@ -226,7 +239,8 @@ async fn generate(
     if cfg.debug_log_chat {
         tracing::info!(input = %input, reply = %reply.text, "outgoing generated");
     }
-    let processed = outguard::process_reply(mode, &reply.text).map_err(|u| Failure {
+    let marker = Marker::from_setting(&cfg.split_marker);
+    let processed = outguard::process_reply(mode, &reply.text, marker).map_err(|u| Failure {
         message: UNEXPECTED_REPLY.into(),
         raw: Some(u.raw),
     })?;
@@ -236,6 +250,7 @@ async fn generate(
         back,
         character: cfg.active_character.clone(),
         mode,
+        marker,
     };
     Ok(match processed {
         Processed::Ok { en, back } => Generated::Ok(draft(en, back)),
@@ -247,15 +262,12 @@ async fn generate(
 /// Put part 1 into the clipboard, remember the line as context and show it in the overlay.
 /// The overlay push is part of the copy on purpose (Hard rule 6): nothing is copied unseen.
 fn deliver(app: &AppHandle, draft: &Draft) -> Result<(), String> {
-    // TODO(M4): keep all parts for `Ctrl+Alt+N`; show them in the overlay with the current one marked.
-    let parts = split::split_for_chat(&draft.en);
+    let parts = split::split(&draft.en, draft.marker);
     let first = parts.first().cloned().unwrap_or_default();
-    app.clipboard().write_text(first).map_err(|e| {
-        tracing::error!("clipboard write failed: {e}");
-        CLIPBOARD_WRITE_FAILED.to_owned()
-    })?;
+    write_clipboard(app, first)?;
 
-    app.state::<AppState>()
+    let state = app.state::<AppState>();
+    state
         .context
         .push(&draft.character, Direction::Out, &draft.en);
 
@@ -264,13 +276,71 @@ fn deliver(app: &AppHandle, draft: &Draft) -> Result<(), String> {
         (_, Some(b)) => Some(b.as_str()),
         (_, None) => Some("(no back-translation)"),
     };
-    let mut note = "Copied — paste it in the game".to_owned();
-    if draft.en.chars().count() > split::CHAT_LIMIT {
-        // TODO(M4): remove once the splitter is in.
-        note.push_str(". Longer than 255 characters — splitting comes in the next update");
+    if parts.len() > 1 {
+        let hotkey = paths::data_dir(app)
+            .and_then(|d| settings::load(app, &d))
+            .map(|s| s.hotkeys.next_part)
+            .unwrap_or_default();
+        let note = format!(
+            "Part 1 of {} copied — paste it, then press {hotkey} for the next part",
+            parts.len()
+        );
+        overlay::push_outgoing(app, &draft.en, back, &note, Some((&parts, 0)));
+        *lock_parts(&state) = Some(PartSet { parts, current: 0 });
+    } else {
+        *lock_parts(&state) = None;
+        overlay::push_outgoing(app, &draft.en, back, "Copied — paste it in the game", None);
     }
-    overlay::push_outgoing(app, &draft.en, back, &note);
     Ok(())
+}
+
+fn write_clipboard(app: &AppHandle, text: String) -> Result<(), String> {
+    app.clipboard().write_text(text).map_err(|e| {
+        tracing::error!("clipboard write failed: {e}");
+        CLIPBOARD_WRITE_FAILED.to_owned()
+    })
+}
+
+fn lock_parts<'a>(state: &'a AppState) -> std::sync::MutexGuard<'a, Option<PartSet>> {
+    state.parts.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Hotkey entry point for `Ctrl+Alt+N`: copy the next part of the last long message.
+pub fn next_part(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    // A held key must not run through all the parts.
+    if !state.limiter.debounce("next-part", Instant::now()) {
+        return;
+    }
+    let mut guard = lock_parts(&state);
+    let Some(set) = guard.as_mut() else {
+        drop(guard);
+        overlay::push(app, Kind::Info, None, "No long message to continue");
+        return;
+    };
+    let total = set.parts.len();
+    if set.current + 1 >= total {
+        let (parts, current) = (set.parts.clone(), set.current);
+        drop(guard);
+        overlay::push_outgoing(app, &parts.join(" "), None, "All parts copied", Some((&parts, current)));
+        return;
+    }
+    let next = set.current + 1;
+    let text = set.parts[next].clone();
+    if let Err(message) = write_clipboard(app, text) {
+        drop(guard);
+        overlay::push(app, Kind::Error, None, &message);
+        return;
+    }
+    set.current = next;
+    let (parts, current) = (set.parts.clone(), set.current);
+    drop(guard);
+    let note = if current + 1 == total {
+        format!("Part {total} of {total} copied — that was the last part")
+    } else {
+        format!("Part {} of {total} copied", current + 1)
+    };
+    overlay::push_outgoing(app, &parts.join(" "), None, &note, Some((&parts, current)));
 }
 
 /// Which outgoing mode Ctrl+Alt+E uses: the last one chosen in compose.

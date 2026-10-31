@@ -15,6 +15,7 @@ enum Action {
     Translate,
     Compose,
     Quick,
+    NextPart,
     ToggleOverlay,
 }
 
@@ -46,6 +47,7 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
                     }
                 }
                 Some(Action::Quick) => actions::quick_clipboard(app),
+                Some(Action::NextPart) => actions::next_part(app),
                 Some(Action::ToggleOverlay) => {
                     // Auto-repeat while the keys are held would flip the overlay on and off.
                     let state = app.state::<actions::AppState>();
@@ -59,7 +61,7 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
         .build()
 }
 
-/// Register the hotkeys that exist in this milestone. A failure (combo taken by another app,
+/// Register the configured hotkeys. A failure (combo taken by another app,
 /// or unparseable) is logged and shown in the overlay; the rest still register.
 pub fn register_all(app: &AppHandle) {
     let cfg = paths::data_dir(app)
@@ -69,6 +71,7 @@ pub fn register_all(app: &AppHandle) {
         (cfg.hotkeys.translate, Action::Translate),
         (cfg.hotkeys.compose, Action::Compose),
         (cfg.hotkeys.quick, Action::Quick),
+        (cfg.hotkeys.next_part, Action::NextPart),
         (cfg.hotkeys.overlay_toggle, Action::ToggleOverlay),
     ];
 

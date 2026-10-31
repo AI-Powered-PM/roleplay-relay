@@ -10,7 +10,7 @@ use regex::Regex;
 
 use crate::parse::{self, Tagged, Unexpected};
 use crate::prompts::Mode;
-use crate::split;
+use crate::split::{self, Marker};
 
 /// Most chat messages one reply may turn into.
 pub const MAX_PARTS: usize = 4;
@@ -44,7 +44,11 @@ pub enum Processed {
 
 /// Parse a raw reply for `mode`, sanitize it and apply the block rules.
 /// `Err` means the reply had no usable text at all (nothing is copied, raw reply is returned).
-pub fn process_reply(mode: Mode, reply: &str) -> Result<Processed, Unexpected> {
+pub fn process_reply(
+    mode: Mode,
+    reply: &str,
+    marker: Marker,
+) -> Result<Processed, Unexpected> {
     let (en, back) = match mode {
         Mode::Grammar => (parse::parse_plain(reply)?, None),
         _ => match parse::parse_tagged(reply)? {
@@ -60,16 +64,16 @@ pub fn process_reply(mode: Mode, reply: &str) -> Result<Processed, Unexpected> {
             raw: reply.trim().to_owned(),
         });
     }
-    match check(&en) {
+    match check(&en, marker) {
         Ok(()) => Ok(Processed::Ok { en, back }),
         Err(block) => Ok(Processed::Blocked { en, back, block }),
     }
 }
 
 /// Block rules on already-sanitized text, including the number of parts the splitter makes.
-pub fn check(text: &str) -> Result<(), Block> {
+pub fn check(text: &str, marker: Marker) -> Result<(), Block> {
     check_text(text)?;
-    check_parts(split::split_for_chat(text).len())
+    check_parts(split::split(text, marker).len())
 }
 
 fn check_text(text: &str) -> Result<(), Block> {
@@ -165,6 +169,14 @@ fn is_pictograph(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn check(text: &str) -> Result<(), Block> {
+        super::check(text, Marker::Numbered)
+    }
+
+    fn process_reply(mode: Mode, reply: &str) -> Result<Processed, Unexpected> {
+        super::process_reply(mode, reply, Marker::Numbered)
+    }
 
     fn ok(en: &str) -> Processed {
         Processed::Ok {
@@ -267,6 +279,19 @@ mod tests {
         assert_eq!(check_parts(1), Ok(()));
         assert_eq!(check_parts(4), Ok(()));
         assert_eq!(check_parts(5), Err(Block::TooManyParts));
+    }
+
+    #[test]
+    fn long_replies_are_blocked_by_the_real_splitter() {
+        let sentence = "This is one sentence of ordinary chat text. ";
+        let four = sentence.repeat(20); // ~880 chars: 4 parts
+        let five = sentence.repeat(26); // ~1140 chars: 5 parts
+        assert_eq!(check(four.trim()), Ok(()));
+        assert_eq!(check(five.trim()), Err(Block::TooManyParts));
+        assert_eq!(
+            super::check(five.trim(), Marker::None),
+            Err(Block::TooManyParts)
+        );
     }
 
     #[test]

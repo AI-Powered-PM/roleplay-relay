@@ -6,7 +6,7 @@ h2 { font-size: 16px; margin: 0 0 8px; }
 section { border: 1px solid #2c2c36; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; background: #1e1e26; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 input[type="password"] { flex: 1; min-width: 220px; }
-input, button { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid #3a3a48; background: #101015; color: inherit; }
+input, button, select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid #3a3a48; background: #101015; color: inherit; }
 button { background: #b9772b; border-color: #b9772b; color: #fff; cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: default; }
 label { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
