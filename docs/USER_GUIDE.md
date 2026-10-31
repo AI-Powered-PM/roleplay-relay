@@ -1,4 +1,4 @@
-# WoW Chat Helper — User Guide
+# Roleplay Relay — User Guide
 
 This guide is for players. It uses short sentences. Names of buttons and messages are written
 in `code style` exactly as they appear on screen.
@@ -9,8 +9,10 @@ in `code style` exactly as they appear on screen.
 
 ## 1. What it is and what it never does
 
-WoW Chat Helper is a small app that lives in the Windows tray (near the clock).
+Roleplay Relay is a small app that lives in the Windows tray (near the clock).
 It helps you read and write English chat while you play.
+
+Supported game: World of Warcraft.
 
 It works only with:
 
@@ -26,10 +28,14 @@ is built so that it cannot do that.
 
 You are responsible for every line you send. Always read the text before you press Enter.
 
+Use at your own risk. No tool can guarantee your game account won't be actioned. You are responsible for every message sent from your account.
+
+Roleplay Relay is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft and Warcraft are trademarks or registered trademarks of Blizzard Entertainment, Inc.
+
 ## 2. Install and first run
 
-1. Run the installer (`WoW Chat Helper_0.1.0_x64-setup.exe`). It installs for your user only.
-2. Start **WoW Chat Helper**. No window opens. A small icon appears in the tray.
+1. Run the installer (`Roleplay Relay_0.1.0_x64-setup.exe`). It installs for your user only.
+2. Start **Roleplay Relay**. No window opens. A small icon appears in the tray.
    If you do not see it, click the arrow `^` next to the clock.
 3. Click the tray icon to open the menu:
    - `Show/Hide overlay` — shows or hides the overlay (see section 6).
@@ -81,7 +87,7 @@ continues, restart Windows.
 
 Next, pick your language (section 4). All other fields in `Settings` are described in section 8. The buttons `Open prompts folder`,
 `Open characters folder` and `Open logs folder` open the matching folder in
-`%APPDATA%\WowChatHelper\`.
+`%APPDATA%\RoleplayRelay\`.
 
 ## 4. Your language
 
@@ -318,7 +324,7 @@ still blocked by the safety check (section 10).
 | `Ctrl+Alt+O` | Show or hide the overlay | Overlay |
 
 You can change every hotkey in `Settings` (section 8). If a hotkey is already used by another
-app, Windows shows a notification `WoW Chat Helper` with the text
+app, Windows shows a notification `Roleplay Relay` with the text
 `Hotkey not available: Ctrl+Alt+T` (your key name), and the field is red in `Settings`.
 Close the other app or choose another key.
 
@@ -368,11 +374,11 @@ Wrong values are repaired when you save (for example an empty model name or `Max
 
 ## 9. Character, glossary and prompts
 
-All your files are in `%APPDATA%\WowChatHelper\` (open the sub-folders with `Open prompts folder`,
+All your files are in `%APPDATA%\RoleplayRelay\` (open the sub-folders with `Open prompts folder`,
 `Open characters folder`, `Open logs folder` in `Settings`):
 
 ```
-%APPDATA%\WowChatHelper\
+%APPDATA%\RoleplayRelay\
 ├─ settings.json            your settings (no API key inside)
 ├─ prompts\                 incoming.md, direct.md, rp.md, grammar.md
 ├─ characters\default\     persona.md, glossary.md
@@ -504,7 +510,7 @@ uses the font `Microsoft YaHei`.
 **The overlay says `Clipboard is empty`.** The copy did not work. Check chat copy (section 5).
 Try pasting into Notepad to see what you copied.
 
-**Logs.** The log file is `%APPDATA%\WowChatHelper\logs\app.log` (button `Open logs folder` in
+**Logs.** The log file is `%APPDATA%\RoleplayRelay\logs\app.log` (button `Open logs folder` in
 `Settings`). When it reaches 1 MB it becomes `app.1.log`, and so on; the app keeps 5 files. It has
 errors, timings and token counts. It does
 **not** have your API key or your chat text (unless you turn on `Log chat text (debugLogChat)`).

@@ -1,4 +1,4 @@
-//! Runtime data folder (%APPDATA%\WowChatHelper) and first-run copy of bundled defaults.
+//! Runtime data folder (%APPDATA%\RoleplayRelay) and first-run copy of bundled defaults.
 
 use std::fs;
 use std::io;
@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager};
 
 pub fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app.path().data_dir().map_err(|e| e.to_string())?;
-    Ok(base.join("WowChatHelper"))
+    Ok(base.join(crate::DATA_DIR_NAME))
 }
 
 /// Create the folder layout and copy any bundled default that is not there yet.

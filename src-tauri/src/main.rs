@@ -5,6 +5,7 @@ mod claude;
 mod commands;
 mod compose;
 mod context;
+mod game;
 mod guard;
 mod hotkeys;
 mod languages;
@@ -17,6 +18,12 @@ mod prompts;
 mod secrets;
 mod settings;
 mod split;
+
+/// Product name: tray tooltip, notification titles, error text. Window titles and the installer
+/// name live in `tauri.conf.json`.
+pub const APP_NAME: &str = "Roleplay Relay";
+/// Folder under `%APPDATA%` that holds settings, prompts, characters and logs.
+pub const DATA_DIR_NAME: &str = "RoleplayRelay";
 
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::TrayIconBuilder;
@@ -51,7 +58,7 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
         .build()?;
 
     let mut tray = TrayIconBuilder::new()
-        .tooltip("WoW Chat Helper")
+        .tooltip(APP_NAME)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -120,7 +127,8 @@ fn main() {
             build_tray(app)?;
             overlay::init(handle);
             hotkeys::register_all(handle);
-            tracing::info!("started");
+            let profile = game::active();
+            tracing::info!("started, game profile {} ({})", profile.id, profile.display_name);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -140,5 +148,5 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running WoW Chat Helper");
+        .expect("error while running Roleplay Relay");
 }

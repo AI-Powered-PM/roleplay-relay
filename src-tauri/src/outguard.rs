@@ -8,13 +8,11 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
+use crate::game;
 use crate::languages::{is_non_latin_letter, Language};
 use crate::parse::{self, Tagged, Unexpected};
 use crate::prompts::Mode;
 use crate::split::{self, Marker};
-
-/// Most chat messages one reply may turn into.
-pub const MAX_PARTS: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum Block {
@@ -28,8 +26,8 @@ pub enum Block {
     NonLatin,
     #[error("Blocked: the reply looks like AI or translation text, not a chat line")]
     MetaText,
-    #[error("Blocked: the reply is too long (more than 4 chat messages)")]
-    TooManyParts,
+    #[error("Blocked: the reply is too long (more than {max} chat messages)")]
+    TooManyParts { max: usize },
 }
 
 /// What a model reply turned into.
@@ -102,7 +100,7 @@ pub fn process_reply(
 /// Block rules on already-sanitized text, including the number of parts the splitter makes.
 pub fn check(text: &str, marker: Marker, lang: &Language) -> Result<(), Block> {
     check_text(text, lang)?;
-    check_parts(split::split(text, marker).len())
+    check_parts(split::split(text, marker, game::active().chat_limit).len())
 }
 
 fn check_text(text: &str, lang: &Language) -> Result<(), Block> {
@@ -126,8 +124,9 @@ fn check_text(text: &str, lang: &Language) -> Result<(), Block> {
 }
 
 pub fn check_parts(count: usize) -> Result<(), Block> {
-    if count > MAX_PARTS {
-        Err(Block::TooManyParts)
+    let max = game::active().max_parts;
+    if count > max {
+        Err(Block::TooManyParts { max })
     } else {
         Ok(())
     }
@@ -161,14 +160,14 @@ fn is_meta(text: &str) -> bool {
     META_PHRASES.iter().any(|p| lower.contains(p))
 }
 
-/// Silent clean-up: one line, no control / invisible characters, no emoji, no `|`
-/// (WoW chat escape sequences), single spaces.
+/// Silent clean-up: one line, no control / invisible characters, no emoji, none of the game
+/// profile's `strip_chars` (chat escape sequences), single spaces.
 pub fn sanitize(text: &str) -> String {
     let cleaned: String = text
         .chars()
         .filter_map(|c| match c {
             '\n' | '\r' | '\t' => Some(' '),
-            '|' => None,
+            c if game::active().strip_chars.contains(&c) => None,
             c if c.is_control() || is_invisible(c) || is_pictograph(c) => None,
             c => Some(c),
         })
@@ -386,7 +385,7 @@ mod tests {
     fn more_than_four_parts_is_blocked() {
         assert_eq!(check_parts(1), Ok(()));
         assert_eq!(check_parts(4), Ok(()));
-        assert_eq!(check_parts(5), Err(Block::TooManyParts));
+        assert_eq!(check_parts(5), Err(Block::TooManyParts { max: 4 }));
     }
 
     #[test]
@@ -395,10 +394,10 @@ mod tests {
         let four = sentence.repeat(20); // ~880 chars: 4 parts
         let five = sentence.repeat(26); // ~1140 chars: 5 parts
         assert_eq!(check(four.trim()), Ok(()));
-        assert_eq!(check(five.trim()), Err(Block::TooManyParts));
+        assert_eq!(check(five.trim()), Err(Block::TooManyParts { max: 4 }));
         assert_eq!(
             super::check(five.trim(), Marker::None, ru()),
-            Err(Block::TooManyParts)
+            Err(Block::TooManyParts { max: 4 })
         );
     }
 
@@ -411,7 +410,7 @@ mod tests {
 
     #[test]
     fn every_block_has_a_message() {
-        for b in [Block::Url, Block::MetaText, Block::TooManyParts] {
+        for b in [Block::Url, Block::MetaText, Block::TooManyParts { max: 4 }] {
             assert!(b.to_string().starts_with("Blocked: "));
         }
     }

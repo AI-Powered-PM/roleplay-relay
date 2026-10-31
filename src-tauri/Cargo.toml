@@ -1,7 +1,7 @@
 [package]
-name = "wow-chat-helper"
+name = "roleplay-relay"
 version = "0.1.0"
-description = "Clipboard-only chat helper for World of Warcraft roleplay"
+description = "RP chat helper: clipboard-only roleplay chat assistant"
 edition = "2021"
 rust-version = "1.77"
 

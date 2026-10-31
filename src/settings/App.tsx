@@ -149,7 +149,8 @@ export default function App() {
 
   return (
     <main>
-      <h1>WoW Chat Helper — Settings</h1>
+      <h1>Roleplay Relay — Settings</h1>
+      <p className="status">RP chat helper</p>
 
       <section>
         <h2>Anthropic API key</h2>

@@ -297,7 +297,7 @@ async fn generate(
 /// Put part 1 into the clipboard, remember the line as context and show it in the overlay.
 /// The overlay push is part of the copy on purpose (Hard rule 6): nothing is copied unseen.
 fn deliver(app: &AppHandle, draft: &Draft) -> Result<(), String> {
-    let parts = split::split(&draft.en, draft.marker);
+    let parts = split::split(&draft.en, draft.marker, crate::game::active().chat_limit);
     let first = parts.first().cloned().unwrap_or_default();
     write_clipboard(app, first)?;
 

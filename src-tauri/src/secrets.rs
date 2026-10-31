@@ -4,7 +4,7 @@
 use keyring::Entry;
 use secrecy::{ExposeSecret, SecretString};
 
-const SERVICE: &str = "WowChatHelper";
+const SERVICE: &str = "RoleplayRelay";
 const USER: &str = "anthropic-api-key";
 const MAX_KEY_LEN: usize = 512;
 

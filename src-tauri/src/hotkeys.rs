@@ -134,7 +134,7 @@ pub fn apply(app: &AppHandle, keys: &Hotkeys, notify: bool) -> Vec<HotkeyStatus>
             let _ = app
                 .notification()
                 .builder()
-                .title("WoW Chat Helper")
+                .title(crate::APP_NAME)
                 .body(body)
                 .show();
         });

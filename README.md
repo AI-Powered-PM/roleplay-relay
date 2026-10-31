@@ -1,8 +1,24 @@
-# WoW Chat Helper
+# Roleplay Relay
 
-Windows tray app that helps a non-native English speaker roleplay in World of Warcraft chat.
-It only uses the clipboard, global hotkeys and its own windows. It never touches the game.
+**RP chat helper.** A Windows tray app that helps a non-native English speaker roleplay in an
+online game's text chat: it translates incoming lines and turns your own words into natural
+English, ready to paste. Bring your own Anthropic API key — usage is billed to your account.
+
+**It never touches the game.** It only reads and writes the clipboard, listens to global hotkeys
+and shows its own windows. It never simulates input, installs input hooks, reads game memory or
+files, or looks for the game window. You paste and press Enter yourself.
+
+Use at your own risk. No tool can guarantee your game account won't be actioned. You are responsible for every message sent from your account.
+
 See `CLAUDE.md` for the full spec and `docs/USER_GUIDE.md` for the player guide.
+
+## Supported games
+
+- World of Warcraft (profile `wow`).
+
+A game profile (`src-tauri/src/game.rs`) controls the chat limit (255 characters), the most chat
+messages one reply may be split into (4), and the characters stripped from outgoing text (`|`).
+Everything else in the app is game-agnostic.
 
 Status: **Milestone 5 (Polish)** — all MVP flows, live-configurable hotkeys, autostart, per-mode
 model settings, size-rotating logs, NSIS installer.
@@ -22,7 +38,7 @@ npm run tauri dev       # development run; the app starts hidden in the tray
 npm run tauri build     # release build + NSIS installer
 ```
 
-The installer is written to `src-tauri/target/release/bundle/nsis/` (`WoW Chat Helper_0.1.0_x64-setup.exe`).
+The installer is written to `src-tauri/target/release/bundle/nsis/` (`Roleplay Relay_0.1.0_x64-setup.exe`).
 The release build has devtools off and starts hidden in the tray.
 
 ## Tests
@@ -74,6 +90,10 @@ npm audit
 
 ## Where data lives
 
-Runtime files are in `%APPDATA%\WowChatHelper\` (settings, prompts, characters, logs).
+Runtime files are in `%APPDATA%\RoleplayRelay\` (settings, prompts, characters, logs).
 The API key is **not** there: it is stored in Windows Credential Manager under the
-target name `anthropic-api-key.WowChatHelper`.
+target name `anthropic-api-key.RoleplayRelay`.
+
+## Disclaimer
+
+Roleplay Relay is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft and Warcraft are trademarks or registered trademarks of Blizzard Entertainment, Inc.

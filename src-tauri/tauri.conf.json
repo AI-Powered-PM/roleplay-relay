@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "WoW Chat Helper",
+  "productName": "Roleplay Relay",
   "version": "0.1.0",
-  "identifier": "com.wowchathelper.app",
+  "identifier": "io.github.ai-powered-pm.roleplay-relay",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "settings",
-        "title": "WoW Chat Helper — Settings",
+        "title": "Roleplay Relay — Settings",
         "url": "settings.html",
         "width": 700,
         "height": 640,
@@ -23,7 +23,7 @@
       },
       {
         "label": "overlay",
-        "title": "WoW Chat Helper Overlay",
+        "title": "Roleplay Relay Overlay",
         "url": "overlay.html",
         "width": 420,
         "height": 200,
@@ -39,7 +39,7 @@
       },
       {
         "label": "compose",
-        "title": "WoW Chat Helper Compose",
+        "title": "Roleplay Relay Compose",
         "url": "compose.html",
         "width": 560,
         "height": 260,
