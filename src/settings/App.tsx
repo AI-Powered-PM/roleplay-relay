@@ -47,7 +47,7 @@ const MODE_ROWS: { id: Mode; label: string }[] = [
 ];
 const PROVIDERS: { id: Provider; label: string; name: string }[] = [
   { id: "anthropic", label: "Anthropic (Claude)", name: "Anthropic" },
-  { id: "openai", label: "OpenAI", name: "OpenAI" },
+  { id: "openai", label: "OpenAI (beta)", name: "OpenAI" },
 ];
 const MODE_DEFAULTS: Record<Provider, Record<Mode, ModeConfig>> = {
   anthropic: {

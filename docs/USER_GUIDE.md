@@ -54,11 +54,17 @@ see an error under the box, restart the app and try again.
 The app can use one of two AI services. You pick one in `Settings`. You need your own API key
 for the one you pick.
 
-| | `Anthropic (Claude)` | `OpenAI` |
+| | `Anthropic (Claude)` | `OpenAI (beta)` |
 |---|---|---|
 | Models used by default | Claude Haiku and Sonnet | `gpt-6-luna` and `gpt-6.1-terra` |
 | Quality | Both give good translations and natural English. Try each on a few lines of your own chat and keep the one whose English you like better. | Same. |
 | Cost | Cheap for translating (`Incoming`, `Grammar`), a little more for `Direct` and `RP`. See section 12. | Same idea: a small model for `Incoming` and `Grammar`, a bigger one for `Direct` and `RP`. See section 12. |
+
+**OpenAI support is beta.** It was tested only against a mock server, not against the real
+OpenAI service. The author does not use it day to day. Anthropic is the main, tested path.
+If a request to OpenAI fails or gives odd results, please open a GitHub issue with the
+`provider error` template and paste the matching lines from `logspp.log` (section 11).
+Remove chat text from the lines first if `debugLogChat` was on.
 
 Both work the same way in the app. You can save both keys and switch any time.
 Each service needs **credits on its own account**. Without credits you see
@@ -79,7 +85,7 @@ Each service needs **credits on its own account**. Without credits you see
 **Choose the provider and put the key in the app**
 
 1. Tray icon → `Settings`.
-2. In the `AI provider` section, pick `Anthropic (Claude)` or `OpenAI` in the `AI provider`
+2. In the `AI provider` section, pick `Anthropic (Claude)` or `OpenAI (beta)` in the `AI provider`
    list. Click `Save settings` at the bottom. The next request already goes to this service.
    No restart is needed.
 3. Find the key section of the provider you picked: `Anthropic API key` or `OpenAI API key`.
@@ -365,7 +371,7 @@ The API keys and `Start with Windows` work on their own; they do not need `Save 
 
 | Field | What it does | Default | When to change it |
 |---|---|---|---|
-| `AI provider` | Which service gets your requests: `Anthropic (Claude)` or `OpenAI`. Each has its own key and its own models. See section 3. | `Anthropic (Claude)` | When you want to try the other service, or one account has no credits. |
+| `AI provider` | Which service gets your requests: `Anthropic (Claude)` or `OpenAI (beta)`. Each has its own key and its own models. See section 3. | `Anthropic (Claude)` | When you want to try the other service, or one account has no credits. |
 | `Anthropic API key`, `OpenAI API key` | Write-only fields for the keys. Buttons `Save key` and `Clear key`. | empty | Once per provider you use. |
 | `Start with Windows` (`General`) | Starts the app in the tray when you log in to Windows. | off | Turn on if you use the app every day. |
 | `Your language` (`Language`) | The language of translations and back-translations: `Deutsch`, `简体中文`, `Français`, `Español`, `Русский`. See section 4. | `Русский` | Set it once, right after the API key. |
@@ -566,7 +572,7 @@ Prices change. Check the pricing page of your provider for the current numbers.
 
 **Which model each mode uses by default**
 
-| Mode | `Anthropic (Claude)` | `OpenAI` | `Max tokens` | `Temperature` |
+| Mode | `Anthropic (Claude)` | `OpenAI (beta)` | `Max tokens` | `Temperature` |
 |---|---|---|---|---|
 | `Incoming` (`Ctrl+Alt+T`) | `claude-haiku-5-5` | `gpt-6-luna` | 800 | 0.2 |
 | `Direct` | `claude-sonnet-5-5` | `gpt-6.1-terra` | 800 | 0.3 |
