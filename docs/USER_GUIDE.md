@@ -248,8 +248,10 @@ still blocked by the safety check (section 9).
 
 - The overlay never takes focus and the mouse goes through it. You can keep playing.
 - `Ctrl+Alt+O` (or tray icon → `Show/Hide overlay`) shows it and keeps it on screen.
-  It shows the last result, or `Nothing to show yet`. Press `Ctrl+Alt+O` again to hide it.
-  It shows only the last result, not a list of older ones.
+  It shows the last 10 results, the newest at the bottom, or `Nothing to show yet`.
+  If the list is too tall for the overlay, the oldest ones are cut off at the top.
+  Press `Ctrl+Alt+O` again to hide it.
+- The history is kept only while the app runs. It is cleared when you quit.
 - Change corner, size and look in `Settings` (see section 7).
 
 ## 6. Hotkey cheat sheet

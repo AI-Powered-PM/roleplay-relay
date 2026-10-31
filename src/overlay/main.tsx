@@ -20,45 +20,63 @@ interface OverlayUpdate {
   };
 }
 
+interface HistoryPayload {
+  entries: OverlayUpdate[];
+}
+
+function Entry({ update }: { update: OverlayUpdate }) {
+  const { kind, original, text, back, note, parts, current, style } = update;
+  return (
+    <div
+      className={`panel ${kind}`}
+      style={{
+        fontSize: style.fontSize,
+        background: `rgba(15, 15, 20, ${style.opacity})`,
+      }}
+    >
+      {note && <div className="note">{note}</div>}
+      {original && <div className="original">{original}</div>}
+      {parts && parts.length > 1 ? (
+        <ol className="parts">
+          {parts.map((part, i) => (
+            <li
+              key={i}
+              className={i === current ? "part current" : i < (current ?? 0) ? "part done" : "part"}
+            >
+              {part}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="text">{text}</div>
+      )}
+      {back && <div className="back">{back}</div>}
+    </div>
+  );
+}
+
 function Overlay() {
-  const [update, setUpdate] = useState<OverlayUpdate | null>(null);
+  // Oldest first, newest last. A normal update is a list of one; the toggle sends the history.
+  const [entries, setEntries] = useState<OverlayUpdate[]>([]);
 
   useEffect(() => {
-    const unlisten = listen<OverlayUpdate>("overlay://update", (e) => setUpdate(e.payload));
+    const subs = [
+      listen<OverlayUpdate>("overlay://update", (e) => setEntries([e.payload])),
+      listen<HistoryPayload>("overlay://history", (e) => setEntries(e.payload.entries)),
+    ];
     return () => {
-      unlisten.then((fn) => fn());
+      subs.forEach((p) => p.then((fn) => fn()));
     };
   }, []);
 
-  if (!update) return null;
-  const { kind, original, text, back, note, parts, current, style } = update;
-  const bottom = style.position.startsWith("bottom");
+  if (entries.length === 0) return null;
+  const bottom = entries[entries.length - 1].style.position.startsWith("bottom");
   return (
     <div className={`stage ${bottom ? "bottom" : "top"}`}>
-      <div
-        className={`panel ${kind}`}
-        style={{
-          fontSize: style.fontSize,
-          background: `rgba(15, 15, 20, ${style.opacity})`,
-        }}
-      >
-        {note && <div className="note">{note}</div>}
-        {original && <div className="original">{original}</div>}
-        {parts && parts.length > 1 ? (
-          <ol className="parts">
-            {parts.map((part, i) => (
-              <li
-                key={i}
-                className={i === current ? "part current" : i < (current ?? 0) ? "part done" : "part"}
-              >
-                {part}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <div className="text">{text}</div>
-        )}
-        {back && <div className="back">{back}</div>}
+      <div className="stack">
+        {entries.map((u, i) => (
+          <Entry key={i} update={u} />
+        ))}
       </div>
     </div>
   );

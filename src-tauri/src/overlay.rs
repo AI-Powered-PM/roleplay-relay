@@ -1,6 +1,7 @@
 //! The overlay window: shown without activating, click-through, auto-hiding.
 //! It receives everything through the `overlay://update` event; it has no commands.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -12,6 +13,8 @@ use crate::{paths, settings};
 
 pub const LABEL: &str = "overlay";
 const EVENT: &str = "overlay://update";
+const HISTORY_EVENT: &str = "overlay://history";
+const HISTORY_LIMIT: usize = 10;
 const HEIGHT_LOGICAL: f64 = 420.0;
 const MARGIN_LOGICAL: f64 = 24.0;
 
@@ -50,6 +53,41 @@ pub struct Update {
     pub style: Style,
 }
 
+/// Payload of `overlay://history`: oldest first, newest last.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HistoryPayload {
+    entries: Vec<Update>,
+    style: Style,
+}
+
+/// Bounded in-memory record of what the overlay showed. Never persisted.
+#[derive(Default)]
+struct History(VecDeque<Update>);
+
+impl History {
+    fn push(&mut self, update: Update) {
+        // Stepping through a split message with Ctrl+Alt+N re-pushes the same message with a new
+        // current part; that updates its entry instead of adding a duplicate.
+        if update.parts.is_some() {
+            if let Some(last) = self.0.back_mut() {
+                if last.parts.is_some() && last.text == update.text {
+                    *last = update;
+                    return;
+                }
+            }
+        }
+        if self.0.len() == HISTORY_LIMIT {
+            self.0.pop_front();
+        }
+        self.0.push_back(update);
+    }
+
+    fn entries(&self) -> Vec<Update> {
+        self.0.iter().cloned().collect()
+    }
+}
+
 #[derive(Default)]
 pub struct OverlayState {
     /// Bumped on every update/hide; an auto-hide timer only fires if its generation is current.
@@ -59,7 +97,7 @@ pub struct OverlayState {
     /// Our own record of visibility. The window is shown and hidden through raw Win32 calls,
     /// so Tauri's cached visible flag cannot be trusted.
     shown: AtomicBool,
-    last: Mutex<Option<Update>>,
+    history: Mutex<History>,
 }
 
 /// One-time window setup. Must run on startup, before the first show.
@@ -145,7 +183,11 @@ fn push_update(app: &AppHandle, update: Update) {
         return;
     };
     if update.kind != Kind::Busy {
-        *state.last.lock().unwrap_or_else(|e| e.into_inner()) = Some(update.clone());
+        state
+            .history
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(update.clone());
     }
     present(app, &update, &s);
 
@@ -187,22 +229,34 @@ pub fn toggle(app: &AppHandle) {
     state.pinned.store(true, Ordering::SeqCst);
     state.generation.fetch_add(1, Ordering::SeqCst);
     let s = load_settings(app);
-    let last = state.last.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    let update = last.map(|mut u| {
-        u.style = style_from(&s);
-        u
-    });
-    let update = update.unwrap_or_else(|| Update {
-        kind: Kind::Info,
-        original: None,
-        text: "Nothing to show yet".into(),
-        back: None,
-        note: None,
-        parts: None,
-        current: None,
-        style: style_from(&s),
-    });
-    present(app, &update, &s);
+    let entries = state
+        .history
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .entries();
+    if entries.is_empty() {
+        let update = Update {
+            kind: Kind::Info,
+            original: None,
+            text: "Nothing to show yet".into(),
+            back: None,
+            note: None,
+            parts: None,
+            current: None,
+            style: style_from(&s),
+        };
+        present(app, &update, &s);
+        return;
+    }
+    let _ = app.emit_to(
+        LABEL,
+        HISTORY_EVENT,
+        &HistoryPayload {
+            entries,
+            style: style_from(&s),
+        },
+    );
+    show_window(app, &s);
 }
 
 pub fn hide(app: &AppHandle) {
@@ -221,10 +275,14 @@ pub fn hide(app: &AppHandle) {
 }
 
 fn present(app: &AppHandle, update: &Update, s: &settings::Settings) {
+    let _ = app.emit_to(LABEL, EVENT, update);
+    show_window(app, s);
+}
+
+fn show_window(app: &AppHandle, s: &settings::Settings) {
     let Some(w) = app.get_webview_window(LABEL) else {
         return;
     };
-    let _ = app.emit_to(LABEL, EVENT, update);
     place(&w, s);
     show_without_activating(&w);
     if let Some(state) = app.try_state::<OverlayState>() {
@@ -337,6 +395,50 @@ mod tests {
         assert_eq!(truncate("a\n b   c", 10), "a b c");
         assert_eq!(truncate(&"x".repeat(300), 240).chars().count(), 241);
         assert!(truncate(&"x".repeat(300), 240).ends_with('…'));
+    }
+
+    fn entry(text: &str) -> Update {
+        Update {
+            kind: Kind::Result,
+            original: None,
+            text: text.into(),
+            back: None,
+            note: None,
+            parts: None,
+            current: None,
+            style: Style {
+                font_size: 16,
+                opacity: 0.8,
+                position: "top-right".into(),
+            },
+        }
+    }
+
+    #[test]
+    fn history_keeps_last_ten_in_order() {
+        let mut h = History::default();
+        for i in 0..13 {
+            h.push(entry(&i.to_string()));
+        }
+        let texts: Vec<String> = h.entries().into_iter().map(|u| u.text).collect();
+        assert_eq!(texts.len(), HISTORY_LIMIT);
+        assert_eq!(texts.first().unwrap(), "3");
+        assert_eq!(texts.last().unwrap(), "12");
+    }
+
+    #[test]
+    fn history_updates_split_message_in_place() {
+        let mut h = History::default();
+        h.push(entry("first"));
+        let mut a = entry("long message");
+        a.parts = Some(vec!["a".into(), "b".into()]);
+        a.current = Some(0);
+        h.push(a.clone());
+        a.current = Some(1);
+        h.push(a);
+        let e = h.entries();
+        assert_eq!(e.len(), 2);
+        assert_eq!(e[1].current, Some(1));
     }
 
     #[test]

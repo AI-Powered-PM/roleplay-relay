@@ -21,6 +21,19 @@ body,
   justify-content: flex-end;
 }
 
+/* Newest entry at the bottom; if the list is taller than the window the oldest clip off the top. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  max-height: 100%;
+  overflow: hidden;
+}
+.stack > .panel {
+  flex: 0 0 auto;
+}
+
 .panel {
   box-sizing: border-box;
   padding: 10px 14px;
