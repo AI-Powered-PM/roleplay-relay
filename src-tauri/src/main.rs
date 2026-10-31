@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod actions;
-mod claude;
 mod commands;
 mod compose;
 mod context;
@@ -9,6 +8,7 @@ mod game;
 mod guard;
 mod hotkeys;
 mod languages;
+mod llm;
 mod logging;
 mod outguard;
 mod overlay;

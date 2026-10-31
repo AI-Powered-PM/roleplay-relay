@@ -1,90 +1,24 @@
-//! Anthropic Messages API client. Non-streaming, 20 s timeout, one retry, temperature fallback.
-//!
-//! Logging rule: status codes, timings, token counts and Anthropic's own error JSON are safe.
-//! Request bodies, response text, headers and `reqwest` error details are never logged.
+//! Anthropic Messages API client. Non-streaming, 20 s timeout; retry rules live in `super::Retry`.
 
-use std::collections::HashSet;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use reqwest::header::HeaderValue;
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
 
+use super::{
+    ApiError, BoxFuture, Failure, LlmProvider, LlmReply, LlmRequest, LlmResponse, Retry, BACKOFF,
+    TIMEOUT,
+};
+
 const ENDPOINT_PATH: &str = "/v1/messages";
 pub const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 const API_VERSION: &str = "2023-06-01";
-const TIMEOUT: Duration = Duration::from_secs(20);
-const BACKOFF: Duration = Duration::from_secs(1);
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum ApiError {
-    #[error("No API key — open Settings")]
-    NoKey,
-    #[error("Invalid API key")]
-    Unauthorized,
-    #[error("Too many requests, wait a moment")]
-    RateLimited,
-    #[error("Service overloaded, try again")]
-    Overloaded,
-    #[error("No response from server")]
-    NoResponse,
-    #[error("Unexpected reply from server")]
-    BadReply,
-    #[error("Request failed (HTTP {0})")]
-    Other(u16),
-}
-
-pub struct Request<'a> {
-    pub model: &'a str,
-    pub max_tokens: u32,
-    pub temperature: Option<f32>,
-    pub system: &'a str,
-    pub user: &'a str,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Reply {
-    pub text: String,
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-}
-
-/// What one HTTP attempt can fail with, before it is mapped to a user-facing `ApiError`.
-#[derive(Debug)]
-enum Failure {
-    Timeout,
-    Network,
-    Status { code: u16, message: String },
-}
-
-impl Failure {
-    fn retryable(&self) -> bool {
-        match self {
-            Failure::Timeout | Failure::Network => true,
-            Failure::Status { code, .. } => matches!(code, 429 | 500 | 529),
-        }
-    }
-
-    fn into_error(self) -> ApiError {
-        match self {
-            Failure::Timeout | Failure::Network => ApiError::NoResponse,
-            Failure::Status { code, .. } => match code {
-                401 => ApiError::Unauthorized,
-                429 => ApiError::RateLimited,
-                500..=599 => ApiError::Overloaded,
-                other => ApiError::Other(other),
-            },
-        }
-    }
-}
 
 pub struct Client {
     http: reqwest::Client,
     base_url: String,
-    backoff: Duration,
-    /// Models whose API rejected `temperature`; remembered for the rest of the session.
-    no_temperature: Mutex<HashSet<String>>,
+    retry: Retry,
 }
 
 impl Client {
@@ -100,81 +34,17 @@ impl Client {
         Self {
             http,
             base_url: base_url.trim_end_matches('/').to_owned(),
-            backoff,
-            no_temperature: Mutex::new(HashSet::new()),
+            retry: Retry::new(backoff),
         }
-    }
-
-    pub async fn complete(&self, key: &SecretString, req: &Request<'_>) -> Result<Reply, ApiError> {
-        let mut temperature = req
-            .temperature
-            .filter(|_| !self.rejects_temperature(req.model));
-        let mut retried = false;
-        loop {
-            let started = Instant::now();
-            let result = self.attempt(key, req, temperature).await;
-            let ms = started.elapsed().as_millis() as u64;
-            let failure = match result {
-                Ok(reply) => {
-                    tracing::info!(
-                        model = req.model,
-                        ms,
-                        input_tokens = reply.input_tokens,
-                        output_tokens = reply.output_tokens,
-                        "API ok"
-                    );
-                    return Ok(reply);
-                }
-                Err(f) => f,
-            };
-            match &failure {
-                Failure::Status { code, message } => {
-                    tracing::warn!(model = req.model, ms, status = *code, api_message = %message, "API error")
-                }
-                Failure::Timeout => tracing::warn!(model = req.model, ms, "API timeout"),
-                Failure::Network => tracing::warn!(model = req.model, ms, "API network error"),
-            }
-
-            if temperature.is_some() && is_temperature_rejection(&failure) {
-                self.no_temperature
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .insert(req.model.to_owned());
-                temperature = None;
-                continue;
-            }
-            if failure.retryable() && !retried {
-                retried = true;
-                tokio::time::sleep(self.backoff).await;
-                continue;
-            }
-            return Err(failure.into_error());
-        }
-    }
-
-    fn rejects_temperature(&self, model: &str) -> bool {
-        self.no_temperature
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .contains(model)
     }
 
     async fn attempt(
         &self,
         key: &SecretString,
-        req: &Request<'_>,
+        req: &LlmRequest<'_>,
         temperature: Option<f32>,
-    ) -> Result<Reply, Failure> {
-        let mut body = json!({
-            "model": req.model,
-            "max_tokens": req.max_tokens,
-            "system": req.system,
-            "messages": [{ "role": "user", "content": req.user }],
-        });
-        if let Some(t) = temperature {
-            // Round through f32 noise so the body says 0.2, not 0.20000000298.
-            body["temperature"] = json!((f64::from(t) * 100.0).round() / 100.0);
-        }
+    ) -> Result<LlmResponse, Failure> {
+        let body = build_body(req, temperature);
 
         let mut key_header =
             HeaderValue::from_str(key.expose_secret()).map_err(|_| Failure::Status {
@@ -222,8 +92,33 @@ impl Client {
     }
 }
 
-fn is_temperature_rejection(f: &Failure) -> bool {
-    matches!(f, Failure::Status { code: 400, message } if message.to_lowercase().contains("temperature"))
+impl LlmProvider for Client {
+    fn complete<'a>(
+        &'a self,
+        key: &'a SecretString,
+        req: &'a LlmRequest<'a>,
+    ) -> BoxFuture<'a, Result<LlmResponse, ApiError>> {
+        Box::pin(async move {
+            self.retry
+                .run(req, |temperature| self.attempt(key, req, temperature))
+                .await
+        })
+    }
+}
+
+/// The Messages API request body.
+fn build_body(req: &LlmRequest<'_>, temperature: Option<f32>) -> Value {
+    let mut body = json!({
+        "model": req.model,
+        "max_tokens": req.max_tokens,
+        "system": req.system,
+        "messages": [{ "role": "user", "content": req.user }],
+    });
+    if let Some(t) = temperature {
+        // Round through f32 noise so the body says 0.2, not 0.20000000298.
+        body["temperature"] = json!((f64::from(t) * 100.0).round() / 100.0);
+    }
+    body
 }
 
 /// Anthropic error bodies look like `{"type":"error","error":{"type":"...","message":"..."}}`.
@@ -235,7 +130,7 @@ fn api_error_message(body: &str) -> String {
         .unwrap_or_default()
 }
 
-fn parse_reply(body: &str) -> Option<Reply> {
+fn parse_reply(body: &str) -> Option<LlmResponse> {
     let v: Value = serde_json::from_str(body).ok()?;
     let text: String = v["content"]
         .as_array()?
@@ -243,8 +138,8 @@ fn parse_reply(body: &str) -> Option<Reply> {
         .filter(|b| b["type"] == "text")
         .filter_map(|b| b["text"].as_str())
         .collect();
-    Some(Reply {
-        text,
+    Some(LlmResponse {
+        reply: LlmReply::Text(text),
         input_tokens: v["usage"]["input_tokens"].as_u64().unwrap_or(0),
         output_tokens: v["usage"]["output_tokens"].as_u64().unwrap_or(0),
     })
@@ -253,7 +148,7 @@ fn parse_reply(body: &str) -> Option<Reply> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
@@ -359,8 +254,8 @@ mod tests {
         SecretString::from("test-key-123".to_owned())
     }
 
-    fn req(temp: Option<f32>) -> Request<'static> {
-        Request {
+    fn req(temp: Option<f32>) -> LlmRequest<'static> {
+        LlmRequest {
             model: "claude-haiku-5-5",
             max_tokens: 800,
             temperature: temp,
@@ -378,8 +273,8 @@ mod tests {
             .unwrap();
         assert_eq!(
             reply,
-            Reply {
-                text: "Привет".into(),
+            LlmResponse {
+                reply: LlmReply::Text("Привет".into()),
                 input_tokens: 11,
                 output_tokens: 7
             }
@@ -403,11 +298,21 @@ mod tests {
         assert!(body.get("stream").is_none());
     }
 
+    #[test]
+    fn request_body_is_byte_identical_to_the_pre_refactor_client() {
+        // Captured from the client as it was in claude.rs before the llm/ split.
+        let with_temp = r#"{"max_tokens":800,"messages":[{"content":"USER","role":"user"}],"model":"claude-haiku-5-5","system":"SYS","temperature":0.2}"#;
+        let without_temp = r#"{"max_tokens":800,"messages":[{"content":"USER","role":"user"}],"model":"claude-haiku-5-5","system":"SYS"}"#;
+        assert_eq!(build_body(&req(Some(0.2)), Some(0.2)).to_string(), with_temp);
+        assert_eq!(build_body(&req(Some(0.2)), None).to_string(), without_temp);
+        assert_eq!(build_body(&req(None), None).to_string(), without_temp);
+    }
+
     #[tokio::test]
     async fn retries_once_on_429_then_succeeds() {
         let (url, seen) = mock(vec![err(429, "slow"), ok("fine")]).await;
         let reply = client(&url).complete(&key(), &req(None)).await.unwrap();
-        assert_eq!(reply.text, "fine");
+        assert_eq!(reply.text(), "fine");
         assert_eq!(seen.lock().unwrap().len(), 2);
     }
 
@@ -437,11 +342,11 @@ mod tests {
         .await;
         let c = client(&url);
         assert_eq!(
-            c.complete(&key(), &req(Some(0.7))).await.unwrap().text,
+            c.complete(&key(), &req(Some(0.7))).await.unwrap().text(),
             "one"
         );
         assert_eq!(
-            c.complete(&key(), &req(Some(0.7))).await.unwrap().text,
+            c.complete(&key(), &req(Some(0.7))).await.unwrap().text(),
             "two"
         );
 
@@ -489,40 +394,6 @@ mod tests {
     }
 
     #[test]
-    fn error_messages_match_the_spec() {
-        assert_eq!(ApiError::NoKey.to_string(), "No API key — open Settings");
-        assert_eq!(ApiError::Unauthorized.to_string(), "Invalid API key");
-        assert_eq!(
-            ApiError::RateLimited.to_string(),
-            "Too many requests, wait a moment"
-        );
-        assert_eq!(
-            ApiError::Overloaded.to_string(),
-            "Service overloaded, try again"
-        );
-        assert_eq!(ApiError::NoResponse.to_string(), "No response from server");
-    }
-
-    #[test]
-    fn status_mapping() {
-        let map = |code| {
-            Failure::Status {
-                code,
-                message: String::new(),
-            }
-            .into_error()
-        };
-        assert_eq!(map(401), ApiError::Unauthorized);
-        assert_eq!(map(429), ApiError::RateLimited);
-        assert_eq!(map(500), ApiError::Overloaded);
-        assert_eq!(map(503), ApiError::Overloaded);
-        assert_eq!(map(529), ApiError::Overloaded);
-        assert_eq!(map(403), ApiError::Other(403));
-        assert_eq!(Failure::Timeout.into_error(), ApiError::NoResponse);
-        assert_eq!(Failure::Network.into_error(), ApiError::NoResponse);
-    }
-
-    #[test]
     fn reply_parsing_joins_text_blocks_and_skips_others() {
         let body = json!({
             "content": [
@@ -532,7 +403,7 @@ mod tests {
             ]
         })
         .to_string();
-        assert_eq!(parse_reply(&body).unwrap().text, "ab");
+        assert_eq!(parse_reply(&body).unwrap().text(), "ab");
         assert!(parse_reply("not json").is_none());
         assert!(parse_reply("{}").is_none());
     }

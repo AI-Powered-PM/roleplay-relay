@@ -9,7 +9,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-use crate::claude::{self, ApiError};
+use crate::llm::anthropic;
+use crate::llm::{ApiError, LlmProvider, LlmRequest};
 use crate::compose::{self, ComposeState};
 use crate::context::{ChatContext, Direction};
 use crate::guard::{self, GuardError, Limiter, Refusal};
@@ -27,7 +28,7 @@ const ACTION_QUICK: &str = "quick";
 /// Shared, long-lived pieces. Registered with `app.manage` at startup.
 pub struct AppState {
     pub limiter: Limiter,
-    pub client: claude::Client,
+    pub client: Box<dyn LlmProvider>,
     pub context: ChatContext,
     /// The long message `Ctrl+Alt+N` walks through. Replaced by every new outgoing line.
     pub parts: Mutex<Option<PartSet>>,
@@ -44,7 +45,7 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             limiter: Limiter::default(),
-            client: claude::Client::new(),
+            client: Box::new(anthropic::Client::new()),
             context: ChatContext::default(),
             parts: Mutex::new(None),
         }
@@ -97,7 +98,7 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
     tracing::info!(language = lang.code, "incoming request");
     overlay::push(app, Kind::Busy, None, "Translating…");
 
-    let request = claude::Request {
+    let request = LlmRequest {
         model: &mode.model,
         max_tokens: mode.max_tokens,
         temperature: mode.temperature,
@@ -111,7 +112,7 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
         .map_err(|e| e.to_string())?;
 
     // Incoming output is only displayed, so no strict parsing: show what came back.
-    let mut translation = reply.text.trim().to_owned();
+    let mut translation = reply.text().trim().to_owned();
     if translation.is_empty() {
         return Err(ApiError::BadReply.to_string());
     }
@@ -120,7 +121,7 @@ async fn run_incoming(app: &AppHandle) -> Result<(String, String), String> {
         // if it is still there, remove it.
         tracing::warn!(language = lang.code, "foreign script in translation; retrying once");
         if let Ok(again) = state.client.complete(&key, &request).await {
-            let again = again.text.trim().to_owned();
+            let again = again.text().trim().to_owned();
             if !again.is_empty() {
                 translation = again;
             }
@@ -244,7 +245,7 @@ async fn generate(
     let state = app.state::<AppState>();
     let user = prompts::build_user_message(&state.context.recent(&cfg.active_character), &input);
 
-    let request = claude::Request {
+    let request = LlmRequest {
         model: &mode_cfg.model,
         max_tokens: mode_cfg.max_tokens,
         temperature: mode_cfg.temperature,
@@ -258,11 +259,11 @@ async fn generate(
         .map_err(|e| e.to_string())?;
 
     if cfg.debug_log_chat {
-        tracing::info!(input = %input, reply = %reply.text, "outgoing generated");
+        tracing::info!(input = %input, reply = %reply.text(), "outgoing generated");
     }
     let marker = Marker::from_setting(&cfg.split_marker);
     let mut processed =
-        outguard::process_reply(mode, &reply.text, marker, lang).map_err(|u| Failure {
+        outguard::process_reply(mode, reply.text(), marker, lang).map_err(|u| Failure {
             message: UNEXPECTED_REPLY.into(),
             raw: Some(u.raw),
         })?;
@@ -273,7 +274,7 @@ async fn generate(
         // Stray foreign-script characters in the back-translation: ask once more, then clean up.
         tracing::warn!(language = lang.code, "foreign script in back-translation; retrying once");
         if let Ok(again) = state.client.complete(&key, &request).await {
-            if let Ok(p) = outguard::process_reply(mode, &again.text, marker, lang) {
+            if let Ok(p) = outguard::process_reply(mode, again.text(), marker, lang) {
                 processed = p;
             }
         }
