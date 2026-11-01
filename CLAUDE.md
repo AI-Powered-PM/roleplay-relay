@@ -372,8 +372,10 @@ Adding a provider later = one new file implementing the trait + a settings entry
   429 → "Too many requests, wait a moment"; 529/5xx → "Service overloaded, try again";
   timeout → "No response from server".
 - Reply cut off by the token limit (Anthropic `stop_reason: "max_tokens"`, OpenAI
-  `status: "incomplete"`): outgoing → error "Reply was cut off — nothing copied"; incoming → show what
-  came, marked `(cut off)`.
+  `status: "incomplete"`): outgoing → error "Reply too long for the {Mode} limit ({max_tokens} tokens) — nothing copied. Shorten
+  your text, or raise Max reply length (tokens) for {Mode} in Settings → Advanced." (`{Mode}` = Direct /
+  RP / Grammar, `{max_tokens}` = the value sent; the column label must match the Settings models table;
+  one warn log line with mode, model, max_tokens, output tokens); incoming → show what came, marked `(cut off)`.
 - Optional parameters (`temperature`, OpenAI `reasoning`, Anthropic `thinking` and `output_config`):
   if the API rejects one for a model (HTTP 400 naming the parameter), retry once without it and
   remember that per model for the session.

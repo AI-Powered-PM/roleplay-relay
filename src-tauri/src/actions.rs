@@ -197,7 +197,21 @@ fn prompt_error(e: &io::Error) -> String {
 // ---------------------------------------------------------------------------------------------
 
 const UNEXPECTED_REPLY: &str = "Unexpected reply — nothing copied";
-const CUT_OFF: &str = "Reply was cut off — nothing copied";
+
+/// Shown when an outgoing reply hit the mode's token limit. `max_tokens` is the value that was
+/// actually sent. The column label and section name must match the Settings models table.
+fn cut_off_message(mode: Mode, max_tokens: u32) -> String {
+    let name = match mode {
+        Mode::Direct => "Direct",
+        Mode::Rp => "RP",
+        Mode::Grammar => "Grammar",
+        Mode::Incoming => "Translate",
+    };
+    format!(
+        "Reply too long for the {name} limit ({max_tokens} tokens) — nothing copied. \
+         Shorten your text, or raise Max reply length (tokens) for {name} in Settings → Advanced."
+    )
+}
 const CLIPBOARD_WRITE_FAILED: &str = "Could not write to the clipboard";
 
 /// A reply that passed (or, for "Copy anyway", failed) the Output guard.
@@ -292,7 +306,14 @@ async fn generate(
         tracing::info!(input = %input, reply = %reply.text(), "outgoing generated");
     }
     if reply.truncated {
-        return Err(Failure::from(CUT_OFF.to_owned()));
+        tracing::warn!(
+            mode = ?mode,
+            model = %mode_cfg.model,
+            max_tokens = mode_cfg.max_tokens,
+            output_tokens = reply.output_tokens,
+            "outgoing reply hit the token limit"
+        );
+        return Err(Failure::from(cut_off_message(mode, mode_cfg.max_tokens)));
     }
     // A refusal is handled like an empty <en>: show the model's words, copy nothing.
     if let LlmReply::Refusal(reason) = &reply.reply {
@@ -624,6 +645,21 @@ mod tests {
                 truncated: true,
             });
             Box::pin(async move { out })
+        }
+    }
+
+    #[test]
+    fn cut_off_message_names_the_mode_and_the_limit() {
+        for (mode, name, tokens) in [
+            (Mode::Direct, "Direct", 800),
+            (Mode::Rp, "RP", 1234),
+            (Mode::Grammar, "Grammar", 400),
+        ] {
+            let m = cut_off_message(mode, tokens);
+            assert!(m.contains(&format!("the {name} limit ({tokens} tokens)")), "{m}");
+            assert!(m.contains(&format!("for {name} in Settings → Advanced")), "{m}");
+            assert!(m.contains("Max reply length (tokens)"), "{m}");
+            assert!(m.contains("nothing copied"), "{m}");
         }
     }
 
