@@ -30,8 +30,14 @@ function Entry({ update, newest }: { update: OverlayUpdate; newest: boolean }) {
   const [clipped, setClipped] = useState(false);
   // The newest entry is clipped at the bottom when it is taller than the window; fade that edge.
   useLayoutEffect(() => {
-    const el = ref.current;
-    setClipped(newest && !!el && el.scrollHeight > el.clientHeight + 1);
+    const check = () => {
+      const el = ref.current;
+      setClipped(newest && !!el && el.scrollHeight > el.clientHeight + 1);
+    };
+    check();
+    // place() resizes the window after the update arrives, so measure again at the final size.
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, [update, newest]);
   return (
     <div
