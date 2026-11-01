@@ -39,7 +39,7 @@ npm run tauri dev       # development run; the app starts hidden in the tray
 npm run tauri build     # release build + NSIS installer
 ```
 
-The installer is written to `src-tauri/target/release/bundle/nsis/` (`Roleplay Relay_0.1.0_x64-setup.exe`).
+The installer is written to `src-tauri/target/release/bundle/nsis/` (`Roleplay Relay_0.1.1_x64-setup.exe`).
 The release build has devtools off and starts hidden in the tray.
 
 ## Tests

@@ -1,6 +1,6 @@
 [package]
 name = "roleplay-relay"
-version = "0.1.0"
+version = "0.1.1"
 description = "RP chat helper: clipboard-only roleplay chat assistant"
 edition = "2021"
 rust-version = "1.77"
