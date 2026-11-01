@@ -108,10 +108,15 @@ hardcodes these values; they read the active profile. MVP: one profile, `wow`, a
 | Field | `wow` value | Used by |
 |---|---|---|
 | `id` | `wow` | logs |
-| `display_name` | `World of Warcraft` | logs only (docs name it by hand) |
+| `display_name` | `World of Warcraft` | logs; `{{game_name}}` in prompts |
 | `chat_limit` | `255` (Unicode scalar values) | `split` |
 | `max_parts` | `4` | Output guard (block if more) |
 | `strip_chars` | `\|` (WoW escape sequences `\|c` `\|H` `\|T`) | Output guard sanitize |
+
+Prompts never name a game: bundled `incoming.md`, `direct.md`, `rp.md`, `grammar.md` use `{{game_name}}`,
+filled in `prompts.rs` from the active profile's `display_name`. Lore example names (Thunder Bluff,
+Cairne Bloodhoof, ...) may stay in the prompts. Add the hash of the outgoing default to `OLD_DEFAULTS`
+whenever a bundled prompt changes.
 
 Not part of the profile (stays in prompts and the user guide): how to copy chat (WoW: Leatrix Plus chat
 copy) and the chat line formats (`[1. General]`, `Thrall says:`, `[Name]:`). The incoming parser is
@@ -314,6 +319,7 @@ each release; providers retire models.
   - `{{persona}}` → active character's `persona.md` (rp, direct)
   - `{{glossary}}` → active character's `glossary.md` if present, else empty
   - `{{user_language}}`, `{{user_language_notes}}` → from the active language (see "User language")
+  - `{{game_name}}` → the active game profile's `display_name` (see "Game profile")
 - User message: a **single** message:
 
 ```

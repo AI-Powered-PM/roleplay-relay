@@ -55,19 +55,29 @@ const OLD_DEFAULTS: &[(&str, &[&str])] = &[
         &[
             "270fb487a3460f21d025ed59b3548e622ae1192835252f3f7e288a612b1879d8",
             "f8a3a03f92b8ff888b47476024dcf8ef64eda342a1532dfae60789d2ae38c3ad",
+            "ee252e50ac3aaf27cc3557ed3285e9939251c2f37315806169cc6de2e8e2151b",
         ],
     ),
     (
         "direct.md",
-        &["d061b5315fe6072fafc9c966030b9babef9e01f7581493c374cd0e48f70454a0"],
+        &[
+            "d061b5315fe6072fafc9c966030b9babef9e01f7581493c374cd0e48f70454a0",
+            "04964e7c902eb17bb7a9e58cb8d23ce3927402cdb97814e49344666950f95ce1",
+        ],
     ),
     (
         "rp.md",
-        &["74f7196a425b3a0a5256f960ea0e0e51a0075741e587ec4ab8d9522fa416a678"],
+        &[
+            "74f7196a425b3a0a5256f960ea0e0e51a0075741e587ec4ab8d9522fa416a678",
+            "13c8893c15543efab249a6c85222569a486afbeba83b31c9dd18abf99c952655",
+        ],
     ),
     (
         "grammar.md",
-        &["22891555a074fb70819bb9a57d15560e37b58a08a4d74a95239a778cd418a973"],
+        &[
+            "22891555a074fb70819bb9a57d15560e37b58a08a4d74a95239a778cd418a973",
+            "f04d6f524e50867f660875fcb00940e67d357017c75e01cae32a3d861929e7ff",
+        ],
     ),
 ];
 
@@ -117,7 +127,8 @@ pub fn files_without_language(data_dir: &Path) -> Vec<&'static str> {
 }
 
 /// Read `prompts/<file>` and substitute `{{persona}}` / `{{glossary}}` from the character folder
-/// and `{{user_language}}` / `{{user_language_notes}}` from `lang`.
+/// `{{user_language}}` / `{{user_language_notes}}` from `lang`, and `{{game_name}}` from the
+/// active game profile.
 /// A missing prompt file is an error (the caller restores defaults and retries once);
 /// missing persona/glossary files are just empty.
 pub fn build_system(
@@ -135,7 +146,8 @@ pub fn build_system(
         .replace("{{persona}}", &persona)
         .replace("{{glossary}}", &glossary)
         .replace("{{user_language_notes}}", lang.notes)
-        .replace("{{user_language}}", lang.prompt_name))
+        .replace("{{user_language}}", lang.prompt_name)
+        .replace("{{game_name}}", crate::game::active().display_name))
 }
 
 /// The one user message: optional `<recent_chat>` then `<input>`. All text is neutralized here,
@@ -215,6 +227,27 @@ mod tests {
         let s = build_system(&d, Mode::Incoming, "default", ru()).unwrap();
         assert_eq!(s, "To Russian.\n\nAgain Russian.");
         let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn game_name_comes_from_the_active_profile() {
+        let d = temp("game");
+        fs::write(d.join("prompts/incoming.md"), "A {{game_name}} line, {{game_name}}.").unwrap();
+        let s = build_system(&d, Mode::Incoming, "default", ru()).unwrap();
+        assert_eq!(s, "A World of Warcraft line, World of Warcraft.");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn bundled_prompts_never_name_a_game() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/prompts");
+        for name in ["incoming.md", "direct.md", "rp.md", "grammar.md"] {
+            let t = fs::read_to_string(root.join(name)).unwrap();
+            assert!(t.contains("{{game_name}}"), "{name}");
+            for word in ["World of Warcraft", "WoW"] {
+                assert!(!t.contains(word), "{name} names {word}");
+            }
+        }
     }
 
     #[test]
