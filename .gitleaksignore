@@ -1,5 +1,5 @@
 # Test fixture: fake OpenAI-style key strings in guard.rs unit tests (not real secrets)
-124bb39dea1fefa2fd0882cc3fcd99538e07ead6:src-tauri/src/guard.rs:generic-api-key:251
+9ea7abcd71eb6f658d1f8081eab6f524c154261d:src-tauri/src/guard.rs:generic-api-key:251
 
 # Test fixture: fake OpenAI-style key strings in guard.rs unit tests (not real secrets)
 src-tauri/src/guard.rs:generic-api-key:251
