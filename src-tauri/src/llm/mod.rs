@@ -42,11 +42,6 @@ impl Provider {
             Provider::OpenAi => "OpenAI",
         }
     }
-
-    /// Only the Responses API takes a `reasoning` parameter.
-    fn sends_reasoning(self) -> bool {
-        self == Provider::OpenAi
-    }
 }
 
 impl std::fmt::Display for Provider {
@@ -178,17 +173,45 @@ pub(crate) fn round_temperature(t: f32) -> f64 {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Extras {
     pub temperature: Option<f32>,
+    /// OpenAI `reasoning: {"effort": "none"}`.
     pub reasoning: bool,
+    /// Anthropic `thinking: {"type": <this>}`.
+    pub thinking: Option<&'static str>,
+    /// Anthropic `output_config: {"effort": <this>}`.
+    pub effort: Option<&'static str>,
 }
 
-/// Which optional parameters an HTTP 400 names: `(temperature, reasoning)`.
-fn rejected_params(f: &Failure) -> (bool, bool) {
+impl Extras {
+    /// Nothing optional: the bare request.
+    pub const NONE: Extras = Extras {
+        temperature: None,
+        reasoning: false,
+        thinking: None,
+        effort: None,
+    };
+}
+
+/// Which optional parameters an HTTP 400 names.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Rejected {
+    temperature: bool,
+    reasoning: bool,
+    thinking: bool,
+    output_config: bool,
+}
+
+fn rejected_params(f: &Failure) -> Rejected {
     match f {
         Failure::Status { code: 400, message } => {
             let m = message.to_lowercase();
-            (m.contains("temperature"), m.contains("reasoning"))
+            Rejected {
+                temperature: m.contains("temperature"),
+                reasoning: m.contains("reasoning"),
+                thinking: m.contains("thinking"),
+                output_config: m.contains("output_config"),
+            }
         }
-        _ => (false, false),
+        _ => Rejected::default(),
     }
 }
 
@@ -202,16 +225,22 @@ fn remember(set: &Mutex<HashSet<String>>, model: &str) {
         .insert(model.to_owned());
 }
 
+/// Models whose API rejected an optional parameter; remembered for the rest of the session.
+#[derive(Default)]
+struct Dropped {
+    temperature: Mutex<HashSet<String>>,
+    reasoning: Mutex<HashSet<String>>,
+    thinking: Mutex<HashSet<String>>,
+    output_config: Mutex<HashSet<String>>,
+}
+
 /// Retry and fallback rules shared by all providers: one retry with backoff on 429, 500, 502,
-/// 503, 529, timeout or network error, and a retry without `temperature` / `reasoning` when the
-/// API rejects it.
+/// 503, 529, timeout or network error, and a retry without `temperature` / `reasoning` /
+/// `thinking` / `output_config` when the API rejects it.
 pub struct Retry {
     provider: Provider,
     backoff: Duration,
-    /// Models whose API rejected `temperature`; remembered for the rest of the session.
-    no_temperature: Mutex<HashSet<String>>,
-    /// Same for `reasoning`.
-    no_reasoning: Mutex<HashSet<String>>,
+    dropped: Dropped,
 }
 
 impl Retry {
@@ -219,15 +248,16 @@ impl Retry {
         Self {
             provider,
             backoff,
-            no_temperature: Mutex::new(HashSet::new()),
-            no_reasoning: Mutex::new(HashSet::new()),
+            dropped: Dropped::default(),
         }
     }
 
-    /// Runs `attempt(extras)` until it succeeds or the rules above give up.
+    /// Runs `attempt(extras)` until it succeeds or the rules above give up. `wanted` is what the
+    /// provider would send for this model; parameters remembered as rejected are taken out of it.
     pub async fn run<F, Fut>(
         &self,
         req: &LlmRequest<'_>,
+        wanted: Extras,
         attempt: F,
     ) -> Result<LlmResponse, ApiError>
     where
@@ -235,12 +265,18 @@ impl Retry {
         Fut: Future<Output = Result<LlmResponse, Failure>>,
     {
         let provider = self.provider.name();
+        let d = &self.dropped;
         let mut extras = Extras {
-            temperature: req
+            temperature: wanted
                 .temperature
-                .filter(|_| !remembered(&self.no_temperature, req.model)),
-            reasoning: self.provider.sends_reasoning()
-                && !remembered(&self.no_reasoning, req.model),
+                .filter(|_| !remembered(&d.temperature, req.model)),
+            reasoning: wanted.reasoning && !remembered(&d.reasoning, req.model),
+            thinking: wanted
+                .thinking
+                .filter(|_| !remembered(&d.thinking, req.model)),
+            effort: wanted
+                .effort
+                .filter(|_| !remembered(&d.output_config, req.model)),
         };
         let mut retried = false;
         loop {
@@ -275,18 +311,29 @@ impl Retry {
                 }
             }
 
-            let (names_temperature, names_reasoning) = rejected_params(&failure);
-            let drop_temperature = names_temperature && extras.temperature.is_some();
-            let drop_reasoning = names_reasoning && extras.reasoning;
-            if drop_temperature || drop_reasoning {
-                if drop_temperature {
-                    remember(&self.no_temperature, req.model);
-                    extras.temperature = None;
-                }
-                if drop_reasoning {
-                    remember(&self.no_reasoning, req.model);
-                    extras.reasoning = false;
-                }
+            let named = rejected_params(&failure);
+            let mut dropped_any = false;
+            if named.temperature && extras.temperature.is_some() {
+                remember(&d.temperature, req.model);
+                extras.temperature = None;
+                dropped_any = true;
+            }
+            if named.reasoning && extras.reasoning {
+                remember(&d.reasoning, req.model);
+                extras.reasoning = false;
+                dropped_any = true;
+            }
+            if named.thinking && extras.thinking.is_some() {
+                remember(&d.thinking, req.model);
+                extras.thinking = None;
+                dropped_any = true;
+            }
+            if named.output_config && extras.effort.is_some() {
+                remember(&d.output_config, req.model);
+                extras.effort = None;
+                dropped_any = true;
+            }
+            if dropped_any {
                 continue;
             }
             if failure.retryable() && !retried {

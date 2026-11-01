@@ -380,7 +380,7 @@ The API keys and `Start with Windows` work on their own; they do not need `Save 
 | `Quick clipboard mode` | Hotkey for quick mode. | `Ctrl+Alt+E` | Same. |
 | `Copy next part` | Hotkey for the next part of a long message. | `Ctrl+Alt+N` | Same. |
 | `Show/Hide overlay` | Hotkey for the overlay. | `Ctrl+Alt+O` | Same. |
-| `Incoming`, `Direct`, `RP`, `Grammar` rows in `Models — Anthropic` and `Models — OpenAI` | Model name, `Max tokens` (the longest answer allowed) and `Temperature` (0 = careful, 1 = more creative; empty = model default) for each mode. There is one table for each provider. The table of the active provider has `(active)` in its title. | See section 12 | Change a model if you want a cheaper or stronger one. Use only real model names from your provider's model list. Models get retired, so check the list now and then. |
+| `Incoming`, `Direct`, `RP`, `Grammar` rows in `Models — Anthropic` and `Models — OpenAI` | Model name, `Max tokens` (the longest answer allowed) and `Temperature` (0 = careful, 1 = more creative; empty = model default) for each mode. For `claude-*-5` models (for example `claude-sonnet-5-5` and `claude-haiku-5-5`) the `Temperature` box is grey and says `ignored`: those models only accept their own default, so the app does not send it. There is one table for each provider. The table of the active provider has `(active)` in its title. | See section 12 | Change a model if you want a cheaper or stronger one. Use only real model names from your provider's model list. Models get retired, so check the list now and then. |
 | `Position` | Screen corner of the overlay: `Top right`, `Top left`, `Bottom right`, `Bottom left`. | `Top right` | Move it away from your chat or action bars. |
 | `Width` | Overlay width in pixels (240–900). | 420 | Wider = fewer lines. |
 | `Font size` | Text size in the overlay (12–32). | 16 | Bigger if it is hard to read. |
@@ -410,9 +410,10 @@ hotkeys still work.
 the defaults (click `Save settings` after). Wrong values are repaired when you save (for example an
 empty model name or `Max tokens` of 999999).
 
-Some models do not accept `Temperature` (or, for OpenAI, the reasoning setting the app sends).
-The app notices this, tries again without it and does not send it again for that model until you
-restart the app. You see nothing; the request just works.
+Some models do not accept `Temperature` (or, for OpenAI, the reasoning setting the app sends; or,
+for Claude 5 models, the thinking and effort settings the app sends). The app notices this, tries
+again without it and does not send it again for that model until you restart the app. You see
+nothing; the request just works.
 
 ## 9. Character, glossary and prompts
 
@@ -596,6 +597,10 @@ OpenAI prices, because they change. To estimate: take about 1500 input tokens an
 message, and multiply by the prices on the OpenAI pricing page (<https://developers.openai.com/api/docs/pricing>).
 The app asks OpenAI not to think before it answers (reasoning is off), so the answer stays short and cheap.
 It also asks OpenAI not to store your chat text.
+
+For the default Claude 5 models the app asks for short, low-effort answers and keeps the model's
+extra "thinking" off or minimal, so answers stay short and cheap. If you type a different model
+name, that model may think first and the answer can cost more.
 
 These are estimates. To spend less, use the small model in `Direct` or `RP` (the `Models`
 section for your provider in `Settings`), at some loss of quality.

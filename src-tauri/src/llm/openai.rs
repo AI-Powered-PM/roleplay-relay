@@ -86,7 +86,15 @@ impl LlmProvider for Client {
     ) -> BoxFuture<'a, Result<LlmResponse, ApiError>> {
         Box::pin(async move {
             self.retry
-                .run(req, |extras| self.attempt(key, req, extras))
+                .run(
+                    req,
+                    Extras {
+                        temperature: req.temperature,
+                        reasoning: true,
+                        ..Extras::NONE
+                    },
+                    |extras| self.attempt(key, req, extras),
+                )
                 .await
         })
     }
@@ -270,6 +278,7 @@ mod tests {
             Extras {
                 temperature: Some(0.3),
                 reasoning: true,
+                ..Extras::NONE
             },
         );
         assert_eq!(full["store"], false);
@@ -278,10 +287,7 @@ mod tests {
 
         let bare = build_body(
             &req(None),
-            Extras {
-                temperature: None,
-                reasoning: false,
-            },
+Extras::NONE,
         );
         assert_eq!(bare["store"], false);
         assert!(bare.get("temperature").is_none() && bare.get("reasoning").is_none());

@@ -281,8 +281,9 @@ Adding a provider later = one new file implementing the trait + a settings entry
 - Reply cut off by the token limit (Anthropic `stop_reason: "max_tokens"`, OpenAI
   `status: "incomplete"`): outgoing → error "Reply was cut off — nothing copied"; incoming → show what
   came, marked `(cut off)`.
-- Optional parameters (`temperature`, OpenAI `reasoning`): if the API rejects one for a model
-  (HTTP 400 naming the parameter), retry once without it and remember that per model for the session.
+- Optional parameters (`temperature`, OpenAI `reasoning`, Anthropic `thinking` and `output_config`):
+  if the API rejects one for a model (HTTP 400 naming the parameter), retry once without it and
+  remember that per model for the session.
 - Prompts are shared by both providers and never name a provider or model.
 
 ### Mode config (defaults, editable in Settings)
@@ -297,12 +298,29 @@ Adding a provider later = one new file implementing the trait + a settings entry
 Model IDs are plain strings in settings. Check them against each provider's current model list before
 each release; providers retire models.
 
+**Anthropic request shape per model** (`llm/anthropic.rs`, matched by model ID prefix, first match
+wins). Claude 5 models accept only their default `temperature`, think on their own unless told
+otherwise (thinking tokens eat `max_tokens`), and need no more than low effort for short chat lines:
+
+| Model ID prefix | `thinking` | `temperature` | `output_config.effort` |
+|---|---|---|---|
+| `claude-sonnet-5-5` | `{"type":"between_tools"}` | not sent | `"low"` |
+| `claude-haiku-5-5` | `{"type":"disabled"}` | not sent | `"low"` |
+| other `claude-*-5*` | not sent | not sent | `"low"` |
+| anything else | not sent | from the mode config | not sent |
+
+The `temperature` column of the mode table therefore applies to OpenAI and to non-Claude-5 Anthropic
+models; Settings shows it as `ignored` for Claude 5 models. Never send `thinking: disabled` to Sonnet
+or `between_tools` to Haiku: the other one's value is a 400.
+
 ### Anthropic
 - `POST https://api.anthropic.com/v1/messages`
 - Headers: `x-api-key`, `anthropic-version: 2023-06-01`, `content-type: application/json`.
-- Body: `model`, `max_tokens`, `temperature`, `system` = filled prompt, `messages` = one user message
-  (see "Request content").
-- Reply: concatenate `content[]` blocks of type `text`. Usage: `usage.input_tokens` / `output_tokens`.
+- Body: `model`, `max_tokens`, `system` = filled prompt, `messages` = one user message (see "Request
+  content"), plus `temperature` / `thinking` / `output_config` as the per-model table in "Mode config"
+  says.
+- Reply: concatenate `content[]` blocks of type `text`; `thinking` blocks are ignored. Usage:
+  `usage.input_tokens` / `output_tokens`.
 
 ### OpenAI
 - `POST https://api.openai.com/v1/responses` (Responses API, not Chat Completions).
@@ -629,7 +647,11 @@ AI providers:
 - [ ] Simulated errors map to the right message on each provider: no key, 401, no credits
       (`insufficient_quota` / credit balance), 429, 5xx, timeout, reply cut off.
 - [ ] Simulated OpenAI `refusal` part → nothing copied, refusal text shown.
-- [ ] A model that rejects `temperature` or `reasoning` → one retry without it, then works for the session.
+- [ ] A model that rejects `temperature`, `reasoning`, `thinking` or `output_config` → one retry without it,
+      then works for the session.
+- [ ] Anthropic request body per model follows the table in "Mode config": `claude-sonnet-5-5` has
+      `thinking: between_tools`, `claude-haiku-5-5` has `thinking: disabled`, both have
+      `output_config.effort: low` and no `temperature`; a non-Claude-5 model still gets `temperature`.
 - [ ] Clipboard holding `sk-proj-…` → "looks like a key", no request made.
 
 Security / ban-safety:

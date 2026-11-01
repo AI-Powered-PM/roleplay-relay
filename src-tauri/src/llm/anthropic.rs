@@ -44,7 +44,7 @@ impl Client {
         req: &LlmRequest<'_>,
         extras: Extras,
     ) -> Result<LlmResponse, Failure> {
-        let body = build_body(req, extras.temperature);
+        let body = build_body(req, extras);
 
         let mut key_header =
             HeaderValue::from_str(key.expose_secret()).map_err(|_| Failure::Status {
@@ -87,22 +87,73 @@ impl LlmProvider for Client {
     ) -> BoxFuture<'a, Result<LlmResponse, ApiError>> {
         Box::pin(async move {
             self.retry
-                .run(req, |extras| self.attempt(key, req, extras))
+                .run(req, wanted_extras(req), |extras| {
+                    self.attempt(key, req, extras)
+                })
                 .await
         })
     }
 }
 
+/// Request shape of a Claude 5 model. These models accept only their default temperature, think
+/// on their own unless told otherwise (thinking tokens eat `max_tokens`), and answer short chat
+/// lines well at low effort, so the mode's `temperature` is never sent to them.
+struct Claude5 {
+    /// `thinking.type`; `None` leaves the field out.
+    thinking: Option<&'static str>,
+}
+
+/// Per-model table, matched by model ID prefix. `None` = not a Claude 5 model: the mode config
+/// (temperature) applies as is.
+fn claude5_shape(model: &str) -> Option<Claude5> {
+    if model.starts_with("claude-sonnet-5-5") {
+        return Some(Claude5 {
+            thinking: Some("between_tools"),
+        });
+    }
+    if model.starts_with("claude-haiku-5-5") {
+        return Some(Claude5 {
+            thinking: Some("disabled"),
+        });
+    }
+    // Any other `claude-<family>-5…` ID, e.g. `claude-opus-5-5`.
+    let after_family = model.strip_prefix("claude-")?.split_once('-')?.1;
+    after_family
+        .starts_with('5')
+        .then_some(Claude5 { thinking: None })
+}
+
+/// The optional parameters this model should get before any rejection is remembered.
+fn wanted_extras(req: &LlmRequest<'_>) -> Extras {
+    match claude5_shape(req.model) {
+        Some(shape) => Extras {
+            thinking: shape.thinking,
+            effort: Some("low"),
+            ..Extras::NONE
+        },
+        None => Extras {
+            temperature: req.temperature,
+            ..Extras::NONE
+        },
+    }
+}
+
 /// The Messages API request body.
-fn build_body(req: &LlmRequest<'_>, temperature: Option<f32>) -> Value {
+fn build_body(req: &LlmRequest<'_>, extras: Extras) -> Value {
     let mut body = json!({
         "model": req.model,
         "max_tokens": req.max_tokens,
         "system": req.system,
         "messages": [{ "role": "user", "content": req.user }],
     });
-    if let Some(t) = temperature {
+    if let Some(t) = extras.temperature {
         body["temperature"] = json!(round_temperature(t));
+    }
+    if let Some(kind) = extras.thinking {
+        body["thinking"] = json!({ "type": kind });
+    }
+    if let Some(effort) = extras.effort {
+        body["output_config"] = json!({ "effort": effort });
     }
     body
 }
@@ -172,9 +223,16 @@ mod tests {
         SecretString::from("test-key-123".to_owned())
     }
 
+    /// A model outside the Claude 5 table: the mode's temperature is sent as is.
+    const PLAIN: &str = "claude-3-7-sonnet";
+
     fn req(temp: Option<f32>) -> LlmRequest<'static> {
+        req_model(PLAIN, temp)
+    }
+
+    fn req_model(model: &'static str, temp: Option<f32>) -> LlmRequest<'static> {
         LlmRequest {
-            model: "claude-haiku-5-5",
+            model,
             max_tokens: 800,
             temperature: temp,
             system: "SYS",
@@ -206,7 +264,7 @@ mod tests {
         assert!(lower.contains("anthropic-version: 2023-06-01"));
         assert!(lower.contains("content-type: application/json"));
         let body = body_of(&raw);
-        assert_eq!(body["model"], "claude-haiku-5-5");
+        assert_eq!(body["model"], PLAIN);
         assert_eq!(body["max_tokens"], 800);
         assert_eq!(body["temperature"], 0.2);
         assert_eq!(body["system"], "SYS");
@@ -216,16 +274,127 @@ mod tests {
         );
         assert!(body.get("stream").is_none());
         assert!(body.get("reasoning").is_none() && body.get("store").is_none());
+        assert!(body.get("thinking").is_none() && body.get("output_config").is_none());
     }
 
     #[test]
     fn request_body_is_byte_identical_to_the_pre_refactor_client() {
         // Captured from the client as it was in claude.rs before the llm/ split.
-        let with_temp = r#"{"max_tokens":800,"messages":[{"content":"USER","role":"user"}],"model":"claude-haiku-5-5","system":"SYS","temperature":0.2}"#;
-        let without_temp = r#"{"max_tokens":800,"messages":[{"content":"USER","role":"user"}],"model":"claude-haiku-5-5","system":"SYS"}"#;
-        assert_eq!(build_body(&req(Some(0.2)), Some(0.2)).to_string(), with_temp);
-        assert_eq!(build_body(&req(Some(0.2)), None).to_string(), without_temp);
-        assert_eq!(build_body(&req(None), None).to_string(), without_temp);
+        let with_temp = r#"{"max_tokens":800,"messages":[{"content":"USER","role":"user"}],"model":"claude-3-7-sonnet","system":"SYS","temperature":0.2}"#;
+        let without_temp = r#"{"max_tokens":800,"messages":[{"content":"USER","role":"user"}],"model":"claude-3-7-sonnet","system":"SYS"}"#;
+        let with = |t| Extras {
+            temperature: t,
+            ..Extras::NONE
+        };
+        let r = req(Some(0.2));
+        assert_eq!(build_body(&r, with(Some(0.2))).to_string(), with_temp);
+        assert_eq!(build_body(&r, with(None)).to_string(), without_temp);
+        assert_eq!(build_body(&req(None), with(None)).to_string(), without_temp);
+    }
+
+    /// Body the client sends first for `model` when the mode asks for temperature 0.7.
+    fn first_body(model: &'static str) -> Value {
+        let r = req_model(model, Some(0.7));
+        build_body(&r, wanted_extras(&r))
+    }
+
+    #[test]
+    fn sonnet_5_5_thinks_between_tools_at_low_effort_without_temperature() {
+        let b = first_body("claude-sonnet-5-5");
+        assert_eq!(b["thinking"], json!({ "type": "between_tools" }));
+        assert_eq!(b["output_config"], json!({ "effort": "low" }));
+        assert!(b.get("temperature").is_none());
+        assert_eq!(b["max_tokens"], 800);
+    }
+
+    #[test]
+    fn haiku_5_5_has_thinking_disabled_at_low_effort_without_temperature() {
+        let b = first_body("claude-haiku-5-5");
+        assert_eq!(b["thinking"], json!({ "type": "disabled" }));
+        assert_eq!(b["output_config"], json!({ "effort": "low" }));
+        assert!(b.get("temperature").is_none());
+    }
+
+    #[test]
+    fn other_claude_5_models_get_effort_only() {
+        for model in ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-6"] {
+            let b = first_body(model);
+            assert!(b.get("thinking").is_none(), "{model}");
+            assert!(b.get("temperature").is_none(), "{model}");
+            assert_eq!(b["output_config"], json!({ "effort": "low" }), "{model}");
+        }
+    }
+
+    #[test]
+    fn everything_else_keeps_the_mode_temperature() {
+        for model in ["claude-3-7-sonnet", "claude-sonnet-4-5", "my-gateway-model"] {
+            let b = first_body(model);
+            assert_eq!(b["temperature"], 0.7, "{model}");
+            assert!(b.get("thinking").is_none() && b.get("output_config").is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn claude5_request_goes_out_in_one_round_trip() {
+        for (model, thinking) in [
+            ("claude-sonnet-5-5", "between_tools"),
+            ("claude-haiku-5-5", "disabled"),
+        ] {
+            let (url, seen) = mock(vec![ok("x")]).await;
+            client(&url)
+                .complete(&key(), &req_model(model, Some(0.7)))
+                .await
+                .unwrap();
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen.len(), 1, "{model}");
+            let b = body_of(&seen[0]);
+            assert_eq!(b["thinking"]["type"], thinking);
+            assert!(b.get("temperature").is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn thinking_rejection_retries_without_it_and_is_remembered() {
+        let (url, seen) = mock(vec![
+            err(400, "thinking.type: unsupported value"),
+            ok("one"),
+            ok("two"),
+        ])
+        .await;
+        let c = client(&url);
+        let r = req_model("claude-haiku-5-5", None);
+        assert_eq!(c.complete(&key(), &r).await.unwrap().text(), "one");
+        assert_eq!(c.complete(&key(), &r).await.unwrap().text(), "two");
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 3);
+        assert!(body_of(&seen[0]).get("thinking").is_some());
+        for raw in &seen[1..] {
+            let b = body_of(raw);
+            assert!(b.get("thinking").is_none(), "must not be sent again");
+            assert!(b.get("output_config").is_some(), "effort stays");
+        }
+    }
+
+    #[tokio::test]
+    async fn output_config_rejection_retries_without_it_and_is_remembered() {
+        let (url, seen) = mock(vec![
+            err(400, "output_config: Extra inputs are not permitted"),
+            ok("one"),
+            ok("two"),
+        ])
+        .await;
+        let c = client(&url);
+        let r = req_model("claude-sonnet-5-5", None);
+        assert_eq!(c.complete(&key(), &r).await.unwrap().text(), "one");
+        assert_eq!(c.complete(&key(), &r).await.unwrap().text(), "two");
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 3);
+        assert!(body_of(&seen[0]).get("output_config").is_some());
+        for raw in &seen[1..] {
+            let b = body_of(raw);
+            assert!(b.get("output_config").is_none(), "must not be sent again");
+            assert!(b.get("thinking").is_some(), "thinking stays");
+        }
     }
 
     #[tokio::test]

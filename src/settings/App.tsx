@@ -357,6 +357,7 @@ export default function App() {
                     label={`${p.name} ${r.label}`}
                     title={r.label}
                     cfg={settings.models[p.id][r.id]}
+                    provider={p.id}
                     onChange={(patch) => setMode(p.id, r.id, patch)}
                   />
                 ))}
@@ -373,7 +374,10 @@ export default function App() {
                   Reset {p.name} models
                 </button>
               </div>
-              <p className="hint">Leave temperature empty to let the model use its own default.</p>
+              <p className="hint">
+                Leave temperature empty to let the model use its own default. Claude 5 models only
+                accept their default, so the app does not send it and the field shows “ignored”.
+              </p>
             </section>
           ))}
 
@@ -491,17 +495,25 @@ export default function App() {
   );
 }
 
+/** Mirrors `claude5_shape` in llm/anthropic.rs: Claude 5 models never get the mode's temperature. */
+function ignoresTemperature(provider: Provider, model: string): boolean {
+  return provider === "anthropic" && /^claude-[^-]+-5/.test(model.trim());
+}
+
 function ModeRow({
   label,
   title,
   cfg,
+  provider,
   onChange,
 }: {
   label: string;
   title: string;
   cfg: ModeConfig;
+  provider: Provider;
   onChange: (p: Partial<ModeConfig>) => void;
 }) {
+  const tempIgnored = ignoresTemperature(provider, cfg.model);
   return (
     <>
       <span>{title}</span>
@@ -524,7 +536,9 @@ function ModeRow({
         min={0}
         max={1}
         step={0.1}
-        value={cfg.temperature ?? ""}
+        value={tempIgnored ? "" : (cfg.temperature ?? "")}
+        placeholder={tempIgnored ? "ignored" : undefined}
+        disabled={tempIgnored}
         aria-label={`${label} temperature`}
         onChange={(e) =>
           onChange({ temperature: e.target.value === "" ? null : Number(e.target.value) })
