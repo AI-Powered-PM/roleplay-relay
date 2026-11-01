@@ -15,8 +15,30 @@ pub const LABEL: &str = "overlay";
 const EVENT: &str = "overlay://update";
 const HISTORY_EVENT: &str = "overlay://history";
 const HISTORY_LIMIT: usize = 10;
-const HEIGHT_LOGICAL: f64 = 420.0;
 const MARGIN_LOGICAL: f64 = 24.0;
+/// Reading speed used to keep long results on screen: characters per second.
+const READ_CHARS_PER_SEC: usize = 25;
+const MAX_AUTO_HIDE_SECS: u64 = 120;
+
+/// Auto-hide delay for an update. A result with a back-translation or parts stays at least long
+/// enough to read what is visible (current part or text, plus the back-translation).
+fn auto_hide_delay(update: &Update, auto_hide_seconds: u32) -> u64 {
+    let base = u64::from(auto_hide_seconds);
+    if update.kind != Kind::Result || (update.back.is_none() && update.parts.is_none()) {
+        return base;
+    }
+    let current = match (&update.parts, update.current) {
+        (Some(parts), Some(i)) if i < parts.len() => parts[i].as_str(),
+        _ => update.text.as_str(),
+    };
+    let chars = current.chars().count() + update.back.as_deref().map_or(0, |b| b.chars().count());
+    reading_delay(chars, base)
+}
+
+fn reading_delay(visible_chars: usize, auto_hide_seconds: u64) -> u64 {
+    let reading = visible_chars.div_ceil(READ_CHARS_PER_SEC) as u64;
+    auto_hide_seconds.max(reading).min(MAX_AUTO_HIDE_SECS)
+}
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -228,7 +250,7 @@ fn show_timed(app: &AppHandle, update: &Update, s: &settings::Settings) {
         return;
     }
     let app = app.clone();
-    let secs = u64::from(s.overlay.auto_hide_seconds);
+    let secs = auto_hide_delay(update, s.overlay.auto_hide_seconds);
     tracing::info!(secs, generation, "overlay auto-hide scheduled");
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(secs)).await;
@@ -330,11 +352,14 @@ fn place(w: &WebviewWindow, s: &settings::Settings) {
         .or_else(|| w.primary_monitor().ok().flatten());
     let Some(m) = monitor else { return };
     let scale = m.scale_factor();
-    let width = (f64::from(s.overlay.width) * scale).round() as u32;
-    let height = (HEIGHT_LOGICAL * scale).round() as u32;
     let margin = (MARGIN_LOGICAL * scale).round() as i32;
-    let mpos = m.position();
-    let msize = m.size();
+    // The window is transparent and click-through, so it takes the whole work area (minus margins):
+    // a long result then never has to be clipped by the window itself.
+    let area = m.work_area();
+    let mpos = area.position;
+    let msize = area.size;
+    let width = ((f64::from(s.overlay.width) * scale).round() as u32).min(msize.width);
+    let height = msize.height.saturating_sub(2 * margin as u32).max(1);
     let x = if s.overlay.position.ends_with("left") {
         mpos.x + margin
     } else {
@@ -426,6 +451,20 @@ mod tests {
         assert_eq!(truncate("a\n b   c", 10), "a b c");
         assert_eq!(truncate(&"x".repeat(300), 240).chars().count(), 241);
         assert!(truncate(&"x".repeat(300), 240).ends_with('…'));
+    }
+
+    #[test]
+    fn auto_hide_delay_follows_reading_time() {
+        assert_eq!(reading_delay(100, 12), 12);
+        assert_eq!(reading_delay(2000, 12), 80);
+        assert_eq!(reading_delay(5000, 12), 120);
+
+        let mut u = entry("short");
+        assert_eq!(auto_hide_delay(&u, 12), 12);
+        u.back = Some("x".repeat(1995));
+        assert_eq!(auto_hide_delay(&u, 12), 80);
+        u.kind = Kind::Error;
+        assert_eq!(auto_hide_delay(&u, 12), 12);
     }
 
     fn entry(text: &str) -> Update {

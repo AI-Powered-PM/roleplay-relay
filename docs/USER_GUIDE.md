@@ -310,13 +310,16 @@ Every part is 255 characters or less.
 
 1. The reply window (or `Convert copied text`) finishes. **Part 1** is in your clipboard.
 2. The overlay shows **all parts** as a list. The part in your clipboard is highlighted.
-   Parts you already copied are dimmed. The top line says, for example,
+   Parts you already copied are dimmed and shown in one line. Parts still to come are shown in two lines at most.
+   The part in your clipboard is always shown in full, so you can check it before you paste. The top line says, for example,
    `Part 1 of 3 copied — paste it, then press Ctrl+Alt+N for the next part`.
 3. Paste part 1 in the game and press `Enter` yourself.
 4. Press `Ctrl+Alt+N`. Part 2 is now in your clipboard and highlighted
    (`Part 2 of 3 copied`). Paste it and press `Enter`.
 5. Repeat. After the last part the overlay says `Part 3 of 3 copied — that was the last part`.
    If you press `Ctrl+Alt+N` again, nothing is copied and the overlay says `All parts copied`.
+
+Long replies stay on screen longer than `Auto-hide after`: about one second for every 25 characters of the part and its back-translation (at most 120 seconds). Each `Ctrl+Alt+N` starts this time again.
 
 If you press `Ctrl+Alt+N` when there is no long message, the overlay says
 `No long message to continue`. A new message from the reply window or `Convert copied text` replaces the old list.
@@ -359,7 +362,7 @@ still blocked by the safety check (section 10).
 - The overlay never takes focus and the mouse goes through it. You can keep playing.
 - `Ctrl+Alt+O` (or tray icon → `Show/Hide overlay`) shows it and keeps it on screen.
   It shows the last 10 results, the newest at the bottom, or `Nothing to show yet`.
-  If the list is too tall for the overlay, the oldest ones are cut off at the top.
+  If the list is too tall for the overlay, only the older entries are cut off at the top. The newest one is always shown.
   Press `Ctrl+Alt+O` again to hide it.
 - The history is kept only while the app runs. It is cleared when you quit.
 - Change corner, size and look in `Settings` (see section 8). The button `Preview overlay` shows a sample with the values you typed, before you save them.

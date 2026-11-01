@@ -33,6 +33,16 @@ body,
 .stack > .panel {
   flex: 0 0 auto;
 }
+/* The newest entry is never clipped at the top: it is capped to the window height and, if still
+   too tall, clipped at its bottom edge. */
+.panel.newest {
+  max-height: 100vh;
+  overflow: hidden;
+}
+.panel.newest.clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
 
 .panel {
   box-sizing: border-box;
@@ -114,4 +124,15 @@ body,
 }
 .part.done {
   color: rgba(241, 232, 216, 0.4);
+}
+/* Compact list: done parts one line, upcoming parts two; the current part stays full. */
+.part.done,
+.part:not(.current):not(.done) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+}
+.part.done {
+  -webkit-line-clamp: 1;
 }

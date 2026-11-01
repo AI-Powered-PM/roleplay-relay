@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { listen } from "@tauri-apps/api/event";
 import "./styles.css";
@@ -24,11 +24,19 @@ interface HistoryPayload {
   entries: OverlayUpdate[];
 }
 
-function Entry({ update }: { update: OverlayUpdate }) {
+function Entry({ update, newest }: { update: OverlayUpdate; newest: boolean }) {
   const { kind, original, text, back, note, parts, current, style } = update;
+  const ref = useRef<HTMLDivElement>(null);
+  const [clipped, setClipped] = useState(false);
+  // The newest entry is clipped at the bottom when it is taller than the window; fade that edge.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    setClipped(newest && !!el && el.scrollHeight > el.clientHeight + 1);
+  }, [update, newest]);
   return (
     <div
-      className={`panel ${kind}`}
+      ref={ref}
+      className={`panel ${kind}${newest ? " newest" : ""}${clipped ? " clipped" : ""}`}
       style={{
         fontSize: style.fontSize,
         background: `rgba(15, 15, 20, ${style.opacity})`,
@@ -75,7 +83,7 @@ function Overlay() {
     <div className={`stage ${bottom ? "bottom" : "top"}`}>
       <div className="stack">
         {entries.map((u, i) => (
-          <Entry key={i} update={u} />
+          <Entry key={i} update={u} newest={i === entries.length - 1} />
         ))}
       </div>
     </div>

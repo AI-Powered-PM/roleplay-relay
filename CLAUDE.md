@@ -225,7 +225,7 @@ For when the user typed in the game's chat box and copied it.
 
 ### 4. Long messages: split (`Ctrl+Alt+N`)
 The chat limit comes from the game profile (WoW: **255 characters**). If the result is longer, split it
-(see `split` below). Part 1 goes to clipboard; overlay shows all parts with the current one highlighted.
+(see `split` below). Part 1 goes to clipboard; overlay shows all parts with the current one highlighted and in full; done parts take one line, upcoming parts two.
 `Ctrl+Alt+N` copies the next part. After the last part, hotkey does nothing and overlay says "All parts copied".
 
 ### 5. Overlay toggle (`Ctrl+Alt+O`)
@@ -280,7 +280,7 @@ uses these labels (e.g. `Open reply window (Ctrl+Alt+R)`).
 
 | Window | Properties |
 |---|---|
-| `overlay` | transparent, no decorations, always on top, skip taskbar, **click-through** (`set_ignore_cursor_events(true)`), **never activates**. Default: top-right corner, 420px wide. Auto-hides N seconds (default 12) after last update unless toggled on. |
+| `overlay` | transparent, no decorations, always on top, skip taskbar, **click-through** (`set_ignore_cursor_events(true)`), **never activates**. Default: top-right corner, 420px wide; height = monitor work area minus margins; newest entry never clipped at the top; long parts lists compacted. Auto-hides N seconds (default 12) after last update unless toggled on; for results with a back-translation or parts the delay is max(N, ceil(visible chars / 25)) s, capped at 120 s (visible = current part or text + back-translation). |
 | `compose` | no decorations, always on top, skip taskbar, focusable, ~560×220, rounded, dark. Hidden (not destroyed) between uses so it opens instantly. |
 | `settings` | normal window (min 600×480), opened from tray. Title `Roleplay Relay — Settings`. Layout and save behavior: see "Settings window" below. |
 
