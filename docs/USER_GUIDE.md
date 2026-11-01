@@ -34,7 +34,7 @@ Roleplay Relay is not affiliated with or endorsed by Blizzard Entertainment. Wor
 
 ## 2. Install and first run
 
-1. Run the installer (`Roleplay Relay_0.1.1_x64-setup.exe`). It installs for your user only.
+1. Run the installer (`Roleplay.Relay_0.1.1_x64-setup.exe`). It installs for your user only.
 2. Start **Roleplay Relay**. No window opens. A small icon appears in the tray.
    If you do not see it, click the arrow `^` next to the clock.
 3. Click the tray icon to open the menu:
