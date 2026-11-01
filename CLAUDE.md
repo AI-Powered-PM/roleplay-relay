@@ -255,7 +255,7 @@ MVP shows only `default`), "Settings", "Quit".
 ## AI providers
 
 Setting `provider`: `anthropic` (default) or `openai`. Settings → dropdown `AI provider` with labels
-`Anthropic (Claude)` and `OpenAI (beta)`. A change applies on the next request, no restart. Each provider has
+`Anthropic (Claude)` and `OpenAI (beta)` (tested against a mock server only). A change applies on the next request, no restart. Each provider has
 its own key and its own model per mode; switching provider never loses the other one's key or models.
 
 Code lives in `src-tauri/src/llm/`: `mod.rs` (trait, shared types, retry, error mapping),
