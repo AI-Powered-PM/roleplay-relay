@@ -111,7 +111,6 @@ fn main() {
         .manage(overlay::OverlayState::default())
         .manage(compose::ComposeState::default())
         .manage(hotkeys::Registered::default())
-        .manage(updates::UpdateState::new(env!("CARGO_PKG_VERSION")))
         .invoke_handler(tauri::generate_handler![
             commands::has_api_key,
             commands::set_api_key,
@@ -154,6 +153,8 @@ fn main() {
             build_tray(app)?;
             overlay::init(handle);
             hotkeys::register_all(handle);
+            // The running app's own version (tauri.conf.json), never hardcoded.
+            app.manage(updates::UpdateState::new(&app.package_info().version.to_string()));
             updates::start(handle);
             let profile = game::active();
             tracing::info!("started, game profile {} ({})", profile.id, profile.display_name);
