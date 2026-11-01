@@ -357,14 +357,17 @@ async fn run_check(app: &AppHandle, manual: bool) -> UpdateStatus {
         }
     }
     if let Some(latest) = notify {
-        let _ = app
+        if let Err(e) = app
             .notification()
             .builder()
             .title(crate::APP_NAME)
             .body(format!(
                 "Version {latest} is available. Open the tray menu to download it."
             ))
-            .show();
+            .show()
+        {
+            tracing::warn!("notification not shown: {e}");
+        }
     }
     sync_tray(app, on);
     emit(app);

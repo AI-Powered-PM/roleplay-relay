@@ -131,12 +131,15 @@ pub fn apply(app: &AppHandle, keys: &Hotkeys, notify: bool) -> Vec<HotkeyStatus>
         // At startup this runs inside `setup`, before the event loop is up; show it a moment later.
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            let _ = app
+            if let Err(e) = app
                 .notification()
                 .builder()
                 .title(crate::APP_NAME)
                 .body(body)
-                .show();
+                .show()
+            {
+                tracing::warn!("notification not shown: {e}");
+            }
         });
     }
     statuses
