@@ -291,14 +291,15 @@ must render correctly (Cyrillic, Chinese, `ä ß ç œ ñ ¿`, accents). Segoe U
 the font stack `"Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif` in all windows,
 including the `Your language` dropdown (`简体中文` must not show as boxes).
 
-Tray tooltip: `Roleplay Relay`. Tray menu: "Show/Hide overlay", "Character ▸" (list of characters,
-MVP shows only `default`), "Settings", "Quit".
+Tray tooltip: `Roleplay Relay`. Tray menu: optional first item `Download version {latest}` + separator
+(only while a newer version is known, see "Updates"), "Show/Hide overlay", "Character ▸" (list of
+characters, MVP shows only `default`), "Settings", "Quit".
 
 ---
 
 ## Settings window
 
-Top to bottom: status banner, then cards `AI service`, `Your language`, `Hotkeys`, `Overlay`,
+Top to bottom: update strip (only when a newer version is known), status banner, then cards `AI service`, `Your language`, `Hotkeys`, `Overlay`,
 `Long replies`, `Character and prompts`, `General`, a collapsed `Advanced` section, and a sticky footer.
 `settings.json` keys and values are unchanged by the layout (hidden fields keep their values).
 
@@ -322,7 +323,15 @@ Top to bottom: status banner, then cards `AI service`, `Your language`, `Hotkeys
 - **`Long replies`**: `Part marker` (`(1/3) at the end`, `… at the end`, `None`; stored `(n/m)`, `…`,
   `none`), hint with `{chat_limit}`.
 - **`Character and prompts`**: `Open characters folder`, `Open prompts folder`, each with a one-line hint.
-- **`General`**: `Start with Windows` (applies right away; hint says so).
+- **`General`**: `Start with Windows` (applies right away; hint says so). Then `Check for updates`
+  (checkbox, part of the form, saved with `Save settings`; hint `Once a day the app asks GitHub whether a
+  new version is out. Nothing else is sent. It never downloads or installs anything by itself.`), the line
+  `Installed version: {currentVersion}` with a status text (`Not checked yet.` / `Checking…` /
+  `You have the latest version.` / `Version {latest} is available.` / `Could not check for updates. Try
+  again later.`), and the buttons `Check now` and, only when an update is available, `Download` (opens the
+  releases page via Rust). Both outlined.
+- **Update strip** (above the status banner, only when an update is available): neutral info strip
+  `Version {latest} is available.` + outlined `Download`. The status banner logic is unchanged.
 - **`Advanced`** (collapsed on open; open/closed kept per session only): models table of the selected
   provider only (`Models — Anthropic (Claude)` / `Models — OpenAI`; columns `Mode`, `Model`, `Max reply
   length (tokens)`, `Temperature`; rows `Translate (incoming)`, `Direct`, `RP`, `Grammar`), a provider hint under the table
@@ -498,9 +507,11 @@ user's text or clipboard text (any language)
 - **Capabilities per window (least privilege):** `overlay` — event listen only, no commands;
   `compose` — `compose_submit`, `compose_cancel`, `get_compose_state`; `settings` — settings commands,
   key commands, `test_api_key`, the read-only `get_game_profile` and `get_last_mode`, `preview_overlay`,
-  `close_settings`, event listen (for the close request), and the opener plugin scoped to
-  `%APPDATA%\RoleplayRelay\**` only. No opener URL scope: the key sites are plain text. No `shell` plugin,
-  no `fs` plugin in any capability (Rust does all file IO).
+  `close_settings`, `get_update_status`, `check_for_updates_now`, `open_releases_page`, event listen
+  (for the close request and update status), and the opener plugin scoped to
+  `%APPDATA%\RoleplayRelay\**` only. No opener URL scope: the key sites are plain text, and the
+  WebView still gets no opener permission: Rust opens one fixed releases URL (`open_releases_page`
+  takes no argument). No `shell` plugin, no `fs` plugin in any capability (Rust does all file IO).
 - **CSP** in `tauri.conf.json`:
   `default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'`.
   No remote URLs loaded in any window; no `dangerousRemoteDomainIpcAccess`.
@@ -508,7 +519,7 @@ user's text or clipboard text (any language)
 - **Never log** request/response bodies (except with `debugLogChat`), headers, or `reqwest` errors with
   request details. API error JSON from either provider is safe to log (it never contains the key).
 - **Supply chain:** commit `Cargo.lock` and `package-lock.json`; run `cargo audit` and `npm audit` at
-  milestone 5 and in CI. No auto-updater in MVP.
+  milestone 5 and in CI. No auto-updater in MVP. A check-only update notifier is allowed (see "Updates").
 
 ---
 
@@ -519,7 +530,8 @@ on update (only add missing ones; unedited old defaults are replaced by hash, se
 
 ```
 %APPDATA%\RoleplayRelay\
-├─ settings.json                # tauri-plugin-store: provider, models per provider, hotkeys, overlay prefs, active character, userLanguage
+├─ settings.json                # tauri-plugin-store: provider, models per provider, hotkeys, overlay prefs, active character, userLanguage, checkForUpdates
+├─ update.json                  # update-check state (Rust only), see "Updates"
 ├─ prompts\incoming.md, direct.md, rp.md, grammar.md
 ├─ characters\default\persona.md
 ├─ characters\default\glossary.md   (optional)
@@ -533,6 +545,47 @@ Logging: errors, timings, HTTP status, token usage from the response, active `pr
 active `userLanguage` code, active game profile `id`.
 **Never log an API key. Do not log chat text unless `debugLogChat: true` in settings (default false).**
 
+---
+
+## Updates
+
+A check-only notifier (post-MVP, not a milestone). The app tells the user a newer version exists; it
+never downloads, installs or runs anything. No `tauri-plugin-updater`, no new crates.
+
+- **Source:** `GET https://api.github.com/repos/AI-Powered-PM/roleplay-relay/releases/latest` (GitHub
+  returns only published, non-draft, non-prerelease releases). Headers exactly:
+  `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`,
+  `User-Agent: RoleplayRelay/<current version>`. No auth, no body. Timeout 10 s, no retry inside one
+  check. Nothing else is sent: no chat text, settings, key or machine id.
+- **Parsing:** read only `tag_name`; accept only `^v?(\d+)\.(\d+)\.(\d+)$`. Anything else (pre-release
+  suffix, garbage, missing) = failed check, debug log. Current version = the app's package version, never
+  hardcoded. Compare numerically (major, minor, patch): `0.1.10 > 0.1.9`; equal or older = up to date.
+- **Download link** is never taken from the API response. It is the constant
+  `https://github.com/AI-Powered-PM/roleplay-relay/releases/latest`, opened from Rust. The repo slug is
+  spelled only in `updates.rs`.
+- **Schedule** (wall clock, survives sleep and restarts): a background loop, first tick 30 s after start
+  (never blocks startup), then every 1 h. Each tick re-reads settings; if `checkForUpdates` is false it
+  does nothing, otherwise it checks only when due: `lastSuccessAt` missing, in the future, or >= 24 h ago.
+  Success stores `lastSuccessAt` and `latestVersion`; failure stores nothing, so the next tick retries
+  (worst case 24 requests/day). Manual `Check now` always runs (even with `checkForUpdates` off), is
+  ignored while a check runs or if the last manual one was < 10 s ago. Auto and manual checks share one
+  in-flight lock.
+- **Errors** (offline, timeout, 403/429, 404, 5xx, bad JSON, unusable tag): never a notification, never
+  the overlay; one warn log line with the HTTP status or error kind only. Settings shows
+  `Could not check for updates. Try again later.` only as the result of a manual check.
+- **Newer version found:** (1) one Windows notification, same mechanism as the hotkey-failure one:
+  `Version {latest} is available. Open the tray menu to download it.`, once per version
+  (`lastNotifiedVersion`), never the overlay, never focus; (2) tray item `Download version {latest}` at
+  the top, then a separator; click opens the releases page; (3) event `updates://status` to the
+  `settings` window.
+- **At startup (no network):** load `update.json`. If `checkForUpdates` is on and the cached
+  `latestVersion` is newer than the current version, show the tray item and report the update at once;
+  otherwise no item.
+- **State file** `%APPDATA%\RoleplayRelay\update.json` (path via `paths::data_dir`):
+  `{ "latestVersion", "lastSuccessAt" (Unix seconds), "lastNotifiedVersion" }`, all optional; a
+  missing or corrupt file = defaults plus one warn line. Rust only. Not part of `Settings` (the form
+  round-trips Settings and would show `Unsaved changes`).
+- **Log:** one info line per successful check: `update check: current=0.1.1 latest=0.2.0 update=true`.
 ---
 
 ## Repo layout
@@ -609,6 +662,8 @@ different limit, to prove nothing hardcodes 255.
 - **Pseudonym:** the project is published as `AI-Powered-PM`. No personal names, personal account names or personal e-mail addresses anywhere in the repo: files, commit messages, commit author/committer (use the GitHub noreply address). Check `git config user.name` / `user.email` before committing.
 - **Releases:** NSIS installer on GitHub Releases with its SHA-256 in the release notes. The installer is
   unsigned, so USER_GUIDE section 2 explains the SmartScreen warning (`More info` → `Run anyway`).
+  The tag must equal the app version (`vX.Y.Z`) and the release must be a normal one (not draft, not
+  pre-release), or the update check does not see it.
 - **CI** (`windows-latest`): `cargo test` (incl. forbidden-API grep), `cargo clippy -D warnings`,
   `npm test`, `cargo audit`, `npm audit --omit=dev`, `gitleaks`.
 
@@ -795,6 +850,23 @@ Name, game profile, publishing:
 - [ ] README and USER_GUIDE section 1 contain the Blizzard disclaimer and the "use at your own risk" line.
 - [ ] No real player, character, guild or server names in the repo.
 
+
+Updates:
+- [ ] Mock returns a newer tag -> one notification, tray item `Download version X`, Settings strip and
+      General line; restart -> tray item and status are there before any request; no second notification.
+- [ ] Same/older tag -> `You have the latest version.`, no notification, no tray item.
+- [ ] Offline at start -> no notification; next hourly tick retries; manual `Check now` shows
+      `Could not check for updates. Try again later.`
+- [ ] Two restarts within an hour -> at most one request (log shows it).
+- [ ] `checkForUpdates: false` -> no automatic request, no cached tray item; `Check now` still works.
+- [ ] `Download` and the tray item open exactly the releases/latest page in the default browser.
+- [ ] Request has only the listed headers; nothing from chat, settings or keys; log lines have no body.
+- [ ] Overlay and compose cannot call the three new commands.
+- [ ] v0.1.1 settings.json loads unchanged with `checkForUpdates: true`.
+- [ ] Notification checked on the installed NSIS build (not `tauri dev`).
+- [ ] USER_GUIDE sections 2, 8, 10, 11 match the UI word for word.
+- [ ] Commits authored as `AI-Powered-PM` (noreply); CI green incl. gitleaks.
+
 ---
 
 ## Out of scope for MVP (backlog)
@@ -823,3 +895,5 @@ Name, game profile, publishing:
 - Prompt caching (system prompts are currently below the minimum cacheable size).
 - Streaming responses.
 - Persisting context between app restarts.
+- Auto-update with `tauri-plugin-updater` (needs an update signing key and `latest.json` in each release;
+  do together with installer code signing).
