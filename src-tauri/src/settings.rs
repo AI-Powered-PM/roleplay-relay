@@ -171,6 +171,7 @@ pub struct Settings {
     pub debug_log_chat: bool,
     pub active_character: String,
     pub user_language: String,
+    pub check_for_updates: bool,
 }
 
 impl Default for Settings {
@@ -184,6 +185,7 @@ impl Default for Settings {
             debug_log_chat: false,
             active_character: "default".into(),
             user_language: languages::DEFAULT_CODE.into(),
+            check_for_updates: true,
         }
     }
 }
@@ -321,6 +323,18 @@ pub fn save_last_mode(app: &AppHandle, data_dir: &Path, mode: Mode) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v0_1_1_settings_load_with_updates_on() {
+        let mut custom = Settings::default();
+        custom.overlay.width = 500;
+        custom.user_language = "de".into();
+        let mut v = serde_json::to_value(&custom).unwrap();
+        v.as_object_mut().unwrap().remove("checkForUpdates");
+        let loaded: Settings = serde_json::from_value(v).unwrap();
+        assert!(loaded.check_for_updates);
+        assert_eq!(loaded, Settings { check_for_updates: true, ..custom });
+    }
 
     #[test]
     fn defaults_match_spec() {

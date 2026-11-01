@@ -18,6 +18,7 @@ mod prompts;
 mod secrets;
 mod settings;
 mod split;
+mod updates;
 
 /// Product name: tray tooltip, notification titles, error text. Window titles and the installer
 /// name live in `tauri.conf.json`.
@@ -25,9 +26,9 @@ pub const APP_NAME: &str = "Roleplay Relay";
 /// Folder under `%APPDATA%` that holds settings, prompts, characters and logs.
 pub const DATA_DIR_NAME: &str = "RoleplayRelay";
 
-use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::menu::{CheckMenuItemBuilder, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Manager, WindowEvent, Wry};
 
 fn show_settings(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
@@ -37,7 +38,10 @@ fn show_settings(app: &AppHandle) {
     }
 }
 
-fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+const TRAY_ID: &str = "main";
+
+/// The tray menu; `update` is the newer version to offer, if any.
+fn tray_menu(app: &AppHandle, update: Option<&str>) -> tauri::Result<Menu<Wry>> {
     let overlay = MenuItemBuilder::with_id("overlay", "Show/Hide overlay").build(app)?;
     let default_char = CheckMenuItemBuilder::with_id("char-default", "default")
         .checked(true)
@@ -49,21 +53,35 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let settings = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
-    let menu = MenuBuilder::new(app)
-        .item(&overlay)
+    let mut menu = MenuBuilder::new(app);
+    if let Some(latest) = update {
+        let download =
+            MenuItemBuilder::with_id("download-update", format!("Download version {latest}"))
+                .build(app)?;
+        menu = menu.item(&download).separator();
+    }
+    menu.item(&overlay)
         .item(&characters)
         .item(&settings)
         .separator()
         .item(&quit)
-        .build()?;
+        .build()
+}
 
-    let mut tray = TrayIconBuilder::new()
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let menu = tray_menu(app.handle(), None)?;
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(APP_NAME)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "overlay" => overlay::toggle(app),
             "settings" => show_settings(app),
+            "download-update" => {
+                if let Err(e) = updates::open_releases_page(app) {
+                    tracing::warn!("releases page not opened: {e}");
+                }
+            }
             "quit" => app.exit(0),
             _ => {}
         });
@@ -93,6 +111,7 @@ fn main() {
         .manage(overlay::OverlayState::default())
         .manage(compose::ComposeState::default())
         .manage(hotkeys::Registered::default())
+        .manage(updates::UpdateState::new(env!("CARGO_PKG_VERSION")))
         .invoke_handler(tauri::generate_handler![
             commands::has_api_key,
             commands::set_api_key,
@@ -114,6 +133,9 @@ fn main() {
             commands::compose_submit,
             commands::compose_copy_anyway,
             commands::compose_cancel,
+            commands::get_update_status,
+            commands::check_for_updates_now,
+            commands::open_releases_page,
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -132,6 +154,7 @@ fn main() {
             build_tray(app)?;
             overlay::init(handle);
             hotkeys::register_all(handle);
+            updates::start(handle);
             let profile = game::active();
             tracing::info!("started, game profile {} ({})", profile.id, profile.display_name);
             Ok(())

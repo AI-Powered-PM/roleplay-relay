@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
+  checkForUpdatesNow,
   clearApiKey,
   closeSettings,
   getAutostart,
@@ -9,9 +10,11 @@ import {
   getLastMode,
   getPromptLanguageNotes,
   getSettings,
+  getUpdateStatus,
   hasApiKey,
   listLanguages,
   openDataFolder,
+  openReleasesPage,
   previewOverlay,
   saveSettings,
   setApiKey,
@@ -27,6 +30,7 @@ import type {
   OutgoingMode,
   Provider,
   Settings,
+  UpdateStatus,
 } from "../shared/types";
 
 function errorText(e: unknown): string {
@@ -163,6 +167,7 @@ export default function App() {
   const [lastMode, setLastMode] = useState<OutgoingMode>("direct");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [updates, setUpdates] = useState<UpdateStatus | null>(null);
 
   const refreshKey = (p: Provider) =>
     hasApiKey(p)
@@ -185,6 +190,7 @@ export default function App() {
     getPromptLanguageNotes().then(setOldPrompts).catch(() => {});
     getGameProfile().then(setGame).catch(() => {});
     getLastMode().then(setLastMode).catch(() => {});
+    getUpdateStatus().then(setUpdates).catch(() => {});
   }, []);
 
   // The reply window may have changed the mode while Settings was open or hidden.
@@ -192,6 +198,7 @@ export default function App() {
     const refresh = () => {
       getLastMode().then(setLastMode).catch(() => {});
       getHotkeyStatus().then(setHkStatus).catch(() => {});
+      getUpdateStatus().then(setUpdates).catch(() => {});
       getPromptLanguageNotes().then(setOldPrompts).catch(() => {});
       for (const p of PROVIDERS) refreshKey(p.id);
     };
@@ -211,6 +218,29 @@ export default function App() {
       sub.then((fn) => fn());
     };
   }, []);
+
+  // Rust pushes the update status after every check.
+  useEffect(() => {
+    const sub = listen<UpdateStatus>("updates://status", (e) => setUpdates(e.payload));
+    return () => {
+      sub.then((fn) => fn());
+    };
+  }, []);
+
+  const onCheckNow = () => {
+    checkForUpdatesNow().then(setUpdates).catch(() => {});
+  };
+  const updateText = !updates
+    ? ""
+    : updates.checking
+      ? "Checking…"
+      : updates.error
+        ? updates.error
+        : updates.updateAvailable
+          ? `Version ${updates.latestVersion} is available.`
+          : updates.latestVersion
+            ? "You have the latest version."
+            : "Not checked yet.";
 
   const setKeyInputFor = (p: Provider, v: string) => setKeyInput((s) => ({ ...s, [p]: v }));
   const setKeyMsgFor = (p: Provider, v: string | null) => setKeyMsg((s) => ({ ...s, [p]: v }));
@@ -362,6 +392,12 @@ export default function App() {
 
       {settings && (
         <>
+          {updates?.updateAvailable && (
+            <div className="banner info-banner">
+              <span>Version {updates.latestVersion} is available.</span>
+              <button onClick={() => openReleasesPage().catch(() => {})}>Download</button>
+            </div>
+          )}
           {ready ? (
             <p className="banner ok">
               Ready. Copy a chat line in the game and press {stored?.hotkeys.translate}.
@@ -629,6 +665,30 @@ export default function App() {
             </label>
             <p className="hint">Applies right away.</p>
             {autostartMsg && <p className="msg">{autostartMsg}</p>}
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.checkForUpdates}
+                onChange={(e) => update({ checkForUpdates: e.target.checked })}
+              />
+              Check for updates
+            </label>
+            <p className="hint">
+              Once a day the app asks GitHub whether a new version is out. Nothing else is sent.
+              It never downloads or installs anything by itself.
+            </p>
+            {updates && (
+              <div className="folder">
+                <span>Installed version: {updates.currentVersion}</span>
+                <span className="hint">{updateText}</span>
+                <button onClick={onCheckNow} disabled={updates.checking}>
+                  Check now
+                </button>
+                {updates.updateAvailable && (
+                  <button onClick={() => openReleasesPage().catch(() => {})}>Download</button>
+                )}
+              </div>
+            )}
           </section>
 
           <section>

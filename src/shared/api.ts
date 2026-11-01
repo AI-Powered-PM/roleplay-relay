@@ -9,6 +9,7 @@ import type {
   Provider,
   Settings,
   SubmitResult,
+  UpdateStatus,
 } from "./types";
 
 export const hasApiKey = (provider: Provider) => invoke<boolean>("has_api_key", { provider });
@@ -42,3 +43,8 @@ export const composeSubmit = (text: string, mode: OutgoingMode) =>
   invoke<SubmitResult>("compose_submit", { text, mode });
 export const composeCopyAnyway = () => invoke<void>("compose_copy_anyway");
 export const composeCancel = () => invoke<void>("compose_cancel");
+
+export const getUpdateStatus = () => invoke<UpdateStatus>("get_update_status");
+export const checkForUpdatesNow = () => invoke<UpdateStatus>("check_for_updates_now");
+/** Rust opens one fixed releases page; there is no URL argument. */
+export const openReleasesPage = () => invoke<void>("open_releases_page");

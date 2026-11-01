@@ -23,6 +23,9 @@ const COMMANDS: &[&str] = &[
     "compose_submit",
     "compose_copy_anyway",
     "compose_cancel",
+    "get_update_status",
+    "check_for_updates_now",
+    "open_releases_page",
 ];
 
 fn main() {

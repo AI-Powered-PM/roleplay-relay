@@ -34,10 +34,12 @@ Roleplay Relay is not affiliated with or endorsed by Blizzard Entertainment. Wor
 
 ## 2. Install and first run
 
-1. Run the installer (`Roleplay.Relay_0.1.1_x64-setup.exe`). It installs for your user only.
+1. Run the installer (`Roleplay.Relay_0.2.0_x64-setup.exe`). It installs for your user only.
 2. Start **Roleplay Relay**. No window opens. A small icon appears in the tray.
    If you do not see it, click the arrow `^` next to the clock.
 3. Click the tray icon to open the menu:
+   - `Download version …` — shown at the top only when a new version is out (for example
+     `Download version 0.2.0`). Click it to open the download page (see **Updates** below).
    - `Show/Hide overlay` — shows or hides the overlay (see section 6).
    - `Character` — shows `default`. More characters come later.
    - `Settings` — opens the Settings window.
@@ -48,6 +50,32 @@ Roleplay Relay is not affiliated with or endorsed by Blizzard Entertainment. Wor
 Start with Windows: open `Settings` and tick `Start with Windows` in the `General` section.
 The app then starts hidden in the tray every time you log in. Untick it to turn it off. If you
 see an error under the box, restart the app and try again.
+
+### Updates
+
+The app never updates itself. It only tells you when a new version is out. Once a day it asks
+GitHub for the number of the latest version. Nothing else is sent.
+
+How you learn about a new version:
+
+- You get one Windows notification: `Version 0.2.0 is available. Open the tray menu to download it.`
+  (with the real version number). You get it only once for each version.
+- The tray menu gets the item `Download version 0.2.0` at the top.
+- `Settings` shows a strip at the top (`Version 0.2.0 is available.` with a `Download` button) and
+  the same in the card `General`.
+
+How to update:
+
+1. Click `Quit` in the tray menu.
+2. Click `Download` in `Settings` or `Download version …` in the tray menu. Your browser opens the
+   releases page. Download the installer (for example `Roleplay.Relay_0.2.0_x64-setup.exe`).
+3. Run the installer. Windows SmartScreen shows the same warning as on the first install: click
+   `More info`, then `Run anyway`.
+
+Your settings, API keys, prompts and characters are kept.
+
+To turn the check off, untick `Check for updates` in `Settings` → `General` and click
+`Save settings`.
 
 ## 3. AI provider and API key
 
@@ -389,8 +417,8 @@ Close the other app or choose another key.
 
 ## 8. Settings
 
-Open the tray icon → `Settings`. The window has these parts, from top to bottom: a status banner,
-then the cards `AI service`, `Your language`, `Hotkeys`, `Overlay`, `Long replies`,
+Open the tray icon → `Settings`. The window has these parts, from top to bottom: an update strip
+(only when a new version is out), a status banner, then the cards `AI service`, `Your language`, `Hotkeys`, `Overlay`, `Long replies`,
 `Character and prompts`, `General`, and a closed section `Advanced`. At the bottom there is a bar
 that is always visible.
 
@@ -468,6 +496,20 @@ The hint says `Replies longer than 255 characters are split into parts. The mark
 | Field | What it does | Default | When to change it |
 |---|---|---|---|
 | `Start with Windows` | Starts the app in the tray when you log in to Windows. It applies right away. | off | Turn on if you use the app every day. |
+| `Check for updates` | Once a day the app asks GitHub whether a new version is out. Nothing else is sent. It never downloads or installs anything by itself. You need `Save settings` for this one. | on | Untick it if you never want the app to connect to GitHub. |
+
+Under these fields you see the line `Installed version:` with your version number, and a status text:
+
+- `Not checked yet.` — no check has finished yet.
+- `Checking…` — a check is running.
+- `You have the latest version.`
+- `Version 0.2.0 is available.` (with the real number) — a newer version is out.
+- `Could not check for updates. Try again later.` — the last `Check now` failed (see section 10).
+
+`Check now` asks GitHub right away, also when `Check for updates` is off. Wait a few seconds
+before you press it again. `Download` appears only when a new version is out. It opens the releases
+page in your browser. When a new version is out, a strip with the same `Download` button is also
+shown at the very top of the window: `Version 0.2.0 is available.`
 
 **Section `Advanced`** (click `▸ Advanced` to open it; it is closed when the window opens).
 
@@ -624,6 +666,12 @@ The check for your language is exact for `简体中文` and `Русский` (it
 `Deutsch`, `Français` and `Español` it is weaker: a single leftover word without special
 letters can pass. Always read the English text before you press `Enter`.
 
+**Updates** (`Settings` → `General`):
+
+| Message | What it means | What to do |
+|---|---|---|
+| `Could not check for updates. Try again later.` | `Check now` did not work: you are offline, GitHub did not answer, or GitHub limits requests for now. | Try again later. Or open the releases page by hand: https://github.com/AI-Powered-PM/roleplay-relay/releases/latest |
+
 **Nothing is copied** also when the model refuses (`Not written:` and the reason). OpenAI can send
 a refusal as a separate part of its answer; the app handles it the same way and shows the refusal text.
 
@@ -633,6 +681,12 @@ a refusal as a separate part of its answer; the app handles it the same way and 
 window that was in front when you pressed `Ctrl+Alt+R`. If the game does not react to the
 keyboard, click once in the game window. Use borderless (windowed fullscreen) mode (section 5).
 If it keeps happening, send `logs\app.log` and say which window mode you use.
+
+**I never get update notifications.** Check these: `Check for updates` is ticked in `Settings` →
+`General` (and saved); the PC is online; Windows notifications are allowed for the app (Windows
+Settings → System → Notifications); Focus Assist / Do Not Disturb is off. Focus Assist can hide
+the notification while you play. The tray item `Download version …` and the strip in `Settings`
+stay. You can always press `Check now`.
 
 **Not sure the key works?** Press `Test key` in `Settings` (section 3).
 

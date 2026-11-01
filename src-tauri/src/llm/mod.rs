@@ -7,7 +7,7 @@
 pub mod anthropic;
 pub mod openai;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 
 use std::collections::HashSet;
 use std::future::Future;

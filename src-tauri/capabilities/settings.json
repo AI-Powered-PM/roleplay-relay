@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings-window",
-  "description": "Settings window: settings and API-key commands only (plus event listen, for the close request). Folder opening is done by the Rust command open_data_folder (fixed sub-folders), so no opener or fs permission is granted to the WebView.",
+  "description": "Settings window: settings, API-key and update-check commands only (plus event listen, for the close request and update status). Folder opening is done by the Rust command open_data_folder (fixed sub-folders), and the Rust command open_releases_page opens one fixed URL, so no opener or fs permission is granted to the WebView.",
   "windows": ["settings"],
   "permissions": [
     "allow-has-api-key",
@@ -20,6 +20,9 @@
     "allow-get-last-mode",
     "allow-preview-overlay",
     "allow-close-settings",
+    "allow-get-update-status",
+    "allow-check-for-updates-now",
+    "allow-open-releases-page",
     "core:event:allow-listen"
   ]
 }

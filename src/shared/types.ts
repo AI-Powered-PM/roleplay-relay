@@ -27,6 +27,15 @@ export interface Settings {
   activeCharacter: string;
   /** Language code from list_languages(), e.g. "ru". */
   userLanguage: string;
+  checkForUpdates: boolean;
+}
+
+export interface UpdateStatus {
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  checking: boolean;
+  error: string | null;
 }
 
 export interface LanguageOption {

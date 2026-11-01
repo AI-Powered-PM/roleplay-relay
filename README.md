@@ -8,6 +8,11 @@ English, ready to paste. Bring your own Anthropic or OpenAI API key — usage is
 and shows its own windows. It never simulates input, installs input hooks, reads game memory or
 files, or looks for the game window. You paste and press Enter yourself.
 
+**Network calls.** The app talks to two places only: the AI provider you chose (Anthropic or
+OpenAI), with your own key, and (optional, on by default) about one request a day to the GitHub
+API for the number of the latest version (`Check for updates` in Settings). That check sends no
+chat text, settings or keys, and the app never downloads or installs anything by itself.
+
 Use at your own risk. No tool can guarantee your game account won't be actioned. You are responsible for every message sent from your account.
 
 See `CLAUDE.md` for the full spec and `docs/USER_GUIDE.md` for the player guide.
@@ -39,7 +44,7 @@ npm run tauri dev       # development run; the app starts hidden in the tray
 npm run tauri build     # release build + NSIS installer
 ```
 
-The installer is written to `src-tauri/target/release/bundle/nsis/` (`Roleplay Relay_0.1.1_x64-setup.exe`).
+The installer is written to `src-tauri/target/release/bundle/nsis/` (`Roleplay Relay_0.2.0_x64-setup.exe`).
 The release build has devtools off and starts hidden in the tray.
 
 ## Tests
@@ -94,6 +99,15 @@ npm audit
 Runtime files are in `%APPDATA%\RoleplayRelay\` (settings, prompts, characters, logs).
 API keys are **not** there: each provider has its own entry in Windows Credential Manager, with
 target names `anthropic-api-key.RoleplayRelay` and `openai-api-key.RoleplayRelay`.
+
+## Releasing
+
+1. Bump the version to the same value in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and
+   `package.json` (`Cargo.lock` and `package-lock.json` follow).
+2. Create an annotated tag `vX.Y.Z` equal to that version.
+3. Publish a normal release (not a draft, not a pre-release) from the `AI-Powered-PM` account with
+   the NSIS installer and its SHA-256. The update check only sees normal releases whose tag looks
+   like `vX.Y.Z`; otherwise clients never learn about it.
 
 ## Disclaimer
 

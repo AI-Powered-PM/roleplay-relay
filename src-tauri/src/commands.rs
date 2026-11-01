@@ -7,7 +7,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::actions::{self, Failure, SubmitResult};
 use crate::llm::Provider;
 use crate::prompts::Mode;
-use crate::{compose, hotkeys, languages, paths, prompts, secrets, settings};
+use crate::{compose, hotkeys, languages, paths, prompts, secrets, settings, updates};
 
 #[tauri::command]
 pub fn has_api_key(provider: Provider) -> Result<bool, String> {
@@ -49,6 +49,7 @@ pub async fn save_settings(
     let dir = paths::data_dir(&app)?;
     let keys = settings.hotkeys.clone();
     settings::save(&app, &dir, settings)?;
+    updates::refresh(&app);
     Ok(hotkeys::apply(&app, &keys, true))
 }
 
@@ -177,4 +178,22 @@ pub fn compose_copy_anyway(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn compose_cancel(app: AppHandle) {
     compose::close(&app);
+}
+
+// ---- updates ----
+
+#[tauri::command]
+pub fn get_update_status(app: AppHandle) -> updates::UpdateStatus {
+    updates::status(&app)
+}
+
+#[tauri::command]
+pub async fn check_for_updates_now(app: AppHandle) -> updates::UpdateStatus {
+    updates::check_now(&app).await
+}
+
+/// Takes no argument: Rust opens one fixed releases URL.
+#[tauri::command]
+pub fn open_releases_page(app: AppHandle) -> Result<(), String> {
+    updates::open_releases_page(&app)
 }
