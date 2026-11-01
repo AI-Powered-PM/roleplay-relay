@@ -196,6 +196,14 @@ struct Inner {
 
 pub struct UpdateState(Mutex<Inner>);
 
+impl Default for UpdateState {
+    /// Managed on the Builder, before any window exists; the version is empty until `setup`
+    /// calls `set_current_version`, and no check runs until then.
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
 impl UpdateState {
     pub fn new(current_version: &str) -> Self {
         Self(Mutex::new(Inner {
@@ -212,6 +220,10 @@ impl UpdateState {
         }))
     }
 
+    pub fn set_current_version(&self, version: &str) {
+        self.lock().status.current_version = version.to_owned();
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -221,7 +233,7 @@ impl UpdateState {
 /// than 10 s after the last manual one, or (auto) when no check is due.
 fn begin(state: &UpdateState, manual: bool, now: u64, at: Instant) -> bool {
     let mut g = state.lock();
-    if g.status.checking {
+    if g.status.checking || g.status.current_version.is_empty() {
         return false;
     }
     if manual {
@@ -467,6 +479,17 @@ mod tests {
         save_state(&dir, &full);
         assert_eq!(load_state(&dir), full);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn default_state_has_empty_version_and_runs_no_check_until_set() {
+        let s = UpdateState::default();
+        assert_eq!(s.lock().status.current_version, "");
+        assert!(!begin(&s, true, 1_000, Instant::now()));
+        assert!(!begin(&s, false, 1_000, Instant::now()));
+        s.set_current_version("0.1.0");
+        assert_eq!(s.lock().status.current_version, "0.1.0");
+        assert!(begin(&s, true, 1_000, Instant::now()));
     }
 
     #[test]

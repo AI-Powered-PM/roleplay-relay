@@ -111,6 +111,9 @@ fn main() {
         .manage(overlay::OverlayState::default())
         .manage(compose::ComposeState::default())
         .manage(hotkeys::Registered::default())
+        // Settings is created from tauri.conf.json before `setup` runs and asks for the update
+        // status on mount, so the state must exist before any window does.
+        .manage(updates::UpdateState::default())
         .invoke_handler(tauri::generate_handler![
             commands::has_api_key,
             commands::set_api_key,
@@ -143,6 +146,10 @@ fn main() {
             if let Err(e) = logging::init(&data.join("logs")) {
                 eprintln!("logging disabled: {e}");
             }
+            logging::install_panic_hook();
+            // The running app's own version (tauri.conf.json), never hardcoded.
+            app.state::<updates::UpdateState>()
+                .set_current_version(&app.package_info().version.to_string());
             if let Err(e) = paths::ensure_layout(handle, &data) {
                 tracing::error!("could not prepare data folder: {e}");
             }
@@ -153,8 +160,6 @@ fn main() {
             build_tray(app)?;
             overlay::init(handle);
             hotkeys::register_all(handle);
-            // The running app's own version (tauri.conf.json), never hardcoded.
-            app.manage(updates::UpdateState::new(&app.package_info().version.to_string()));
             updates::start(handle);
             let profile = game::active();
             tracing::info!("started, game profile {} ({})", profile.id, profile.display_name);

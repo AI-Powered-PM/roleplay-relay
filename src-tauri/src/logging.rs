@@ -85,6 +85,25 @@ pub fn init(logs_dir: &Path) -> Result<(), String> {
         .map_err(|e| format!("subscriber: {e}"))
 }
 
+/// With `panic = "abort"` a panic kills the app without a trace. Log message and location (the
+/// panic text comes from our code or Tauri, never from chat text or keys), then run the default hook.
+pub fn install_panic_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = info.payload();
+        let message = payload
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_owned())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "non-text panic payload".to_owned());
+        let location = info
+            .location()
+            .map_or_else(|| "unknown location".to_owned(), |l| format!("{}:{}", l.file(), l.line()));
+        tracing::error!("panic at {location}: {message}");
+        previous(info);
+    }));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
