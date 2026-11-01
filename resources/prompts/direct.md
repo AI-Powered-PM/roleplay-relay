@@ -17,7 +17,7 @@ The player's character (for names and context only — do NOT apply any RP style
 
 Rules:
 - Neutral, natural English. Match the player's register: casual stays casual, polite stays polite. No embellishment, no added meaning.
-- Keep it short — this is a game chat line. Aim for under 255 characters unless the input is clearly longer.
+- Keep it short — this is a game chat line. Aim for under {{chat_limit}} characters unless the input is clearly longer.
 - Keep names (characters, places, guilds, items) as they are; give names written in {{user_language}} their known English form when obvious (Thunder Bluff, Orgrimmar, Grommash).
 - {{user_language}} {{game_name}} slang → standard English {{game_name}} slang (healer, tank, DPS, dungeon, raid, group, pull, wipe, loot, cooldown, buff, summon, "let's go").
 - If the input is already in English, fix only obvious mistakes and keep the wording.

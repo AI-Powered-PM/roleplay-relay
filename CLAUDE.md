@@ -109,12 +109,14 @@ hardcodes these values; they read the active profile. MVP: one profile, `wow`, a
 |---|---|---|
 | `id` | `wow` | logs |
 | `display_name` | `World of Warcraft` | logs; `{{game_name}}` in prompts |
-| `chat_limit` | `255` (Unicode scalar values) | `split` |
-| `max_parts` | `4` | Output guard (block if more) |
+| `chat_limit` | `255` (Unicode scalar values) | `split`; `{{chat_limit}}` in prompts |
+| `max_parts` | `4` | Output guard (block if more); `{{max_chars}}` in prompts (= `chat_limit` × `max_parts`, WoW 1020) |
 | `strip_chars` | `\|` (WoW escape sequences `\|c` `\|H` `\|T`) | Output guard sanitize |
 
 Prompts never name a game: bundled `incoming.md`, `direct.md`, `rp.md`, `grammar.md` use `{{game_name}}`,
-filled in `prompts.rs` from the active profile's `display_name`. Lore example names (Thunder Bluff,
+filled in `prompts.rs` from the active profile's `display_name`. `rp.md` and `direct.md` also use
+`{{chat_limit}}` (the profile's `chat_limit`) and, in `rp.md`, `{{max_chars}}` (`chat_limit` × `max_parts`),
+so no prompt hardcodes `255`. User-edited prompts without these placeholders keep working. Lore example names (Thunder Bluff,
 Cairne Bloodhoof, ...) may stay in the prompts. Add the hash of the outgoing default to `OLD_DEFAULTS`
 whenever a bundled prompt changes.
 
@@ -432,6 +434,7 @@ or `between_tools` to Haiku: the other one's value is a 400.
   - `{{glossary}}` → active character's `glossary.md` if present, else empty
   - `{{user_language}}`, `{{user_language_notes}}` → from the active language (see "User language")
   - `{{game_name}}` → the active game profile's `display_name` (see "Game profile")
+  - `{{chat_limit}}` → the profile's `chat_limit`; `{{max_chars}}` → `chat_limit` × `max_parts`
 - User message: a **single** message:
 
 ```
@@ -492,7 +495,11 @@ user's text or clipboard text (any language)
    - meta / AI text: `as an ai`, `language model`, `i can't help with`, `i cannot help with`,
      `i'm not able to`, `claude`, `anthropic`, `openai`, `chatgpt`, `translation:`, `<en>`, `<back>`
      (case-insensitive);
-   - result splits into more than the profile's `max_parts` (WoW: 4).
+   - result splits into more than the profile's `max_parts` (WoW: 4). `Block::TooManyParts { parts, max }`
+     displays `Too long: {parts} chat messages (max {max}).`; the caller adds a second sentence with the
+     **currently configured** hotkeys. Reply window (next to `Copy anyway`): `Shorten your text, or press
+     Copy anyway and send it part by part with Copy next part ({nextPart hotkey}).` Convert copied text
+     (overlay, no `Copy anyway`): `Shorten your text and try again, or use Open reply window ({compose hotkey}).`
 3. Only then split and copy part 1.
 
 ### Tauri hardening
@@ -803,6 +810,8 @@ Name, game profile, publishing:
 - [ ] No `WoW`, `Warcraft` or `Blizzard` in `productName`, `identifier`, icon, window titles,
       installer file name or repo name.
 - [ ] `255`, `4` and `|` appear only in `game.rs` (and tests); `split` passes a test with a non-255 limit.
+- [ ] A reply needing 5+ parts → reply window shows `Too long: 5 chat messages (max 4). …` with the configured `Copy next part` hotkey; after `Copy anyway`, `Copy next part` copies every part.
+- [ ] Bundled prompts contain no literal `255`; with a test profile limit of 200 the filled `rp.md` says `200`.
 - [ ] If migration applies: an old install's key and `%APPDATA%\WowChatHelper\` files are picked up
       on first start under the new name.
 - [ ] `gitleaks` over the full history: no findings. CI is green on `windows-latest`.

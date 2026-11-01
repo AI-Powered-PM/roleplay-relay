@@ -26,8 +26,8 @@ pub enum Block {
     NonLatin,
     #[error("Blocked: the reply looks like AI or translation text, not a chat line")]
     MetaText,
-    #[error("Blocked: the reply is too long (more than {max} chat messages)")]
-    TooManyParts { max: usize },
+    #[error("Too long: {parts} chat messages (max {max}).")]
+    TooManyParts { parts: usize, max: usize },
 }
 
 /// What a model reply turned into.
@@ -126,7 +126,7 @@ fn check_text(text: &str, lang: &Language) -> Result<(), Block> {
 pub fn check_parts(count: usize) -> Result<(), Block> {
     let max = game::active().max_parts;
     if count > max {
-        Err(Block::TooManyParts { max })
+        Err(Block::TooManyParts { parts: count, max })
     } else {
         Ok(())
     }
@@ -390,19 +390,19 @@ mod tests {
     fn more_than_four_parts_is_blocked() {
         assert_eq!(check_parts(1), Ok(()));
         assert_eq!(check_parts(4), Ok(()));
-        assert_eq!(check_parts(5), Err(Block::TooManyParts { max: 4 }));
+        assert_eq!(check_parts(5), Err(Block::TooManyParts { parts: 5, max: 4 }));
     }
 
     #[test]
     fn long_replies_are_blocked_by_the_real_splitter() {
         let sentence = "This is one sentence of ordinary chat text. ";
         let four = sentence.repeat(20); // ~880 chars: 4 parts
-        let five = sentence.repeat(26); // ~1140 chars: 5 parts
+        let five = sentence.repeat(26); // ~1140 chars: 6 parts at sentence boundaries
         assert_eq!(check(four.trim()), Ok(()));
-        assert_eq!(check(five.trim()), Err(Block::TooManyParts { max: 4 }));
+        assert_eq!(check(five.trim()), Err(Block::TooManyParts { parts: 6, max: 4 }));
         assert_eq!(
             super::check(five.trim(), Marker::None, ru()),
-            Err(Block::TooManyParts { max: 4 })
+            Err(Block::TooManyParts { parts: 6, max: 4 })
         );
     }
 
@@ -415,9 +415,13 @@ mod tests {
 
     #[test]
     fn every_block_has_a_message() {
-        for b in [Block::Url, Block::MetaText, Block::TooManyParts { max: 4 }] {
+        for b in [Block::Url, Block::MetaText] {
             assert!(b.to_string().starts_with("Blocked: "));
         }
+        assert_eq!(
+            Block::TooManyParts { parts: 6, max: 4 }.to_string(),
+            "Too long: 6 chat messages (max 4)."
+        );
     }
 
     // ---- full pipeline ----

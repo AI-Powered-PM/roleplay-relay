@@ -484,7 +484,7 @@ pub async fn compose_submit(
             let result = SubmitResult::Blocked {
                 en: draft.en.clone(),
                 back: draft.back.clone(),
-                reason: block.to_string(),
+                reason: compose_block_message(&block, &configured_hotkeys(app).next_part),
             };
             compose_state.set_pending(draft);
             Ok(result)
@@ -500,6 +500,34 @@ pub fn compose_copy_anyway(app: &AppHandle) -> Result<(), String> {
     deliver(app, &draft)?;
     compose::close(app);
     Ok(())
+}
+
+/// The currently configured hotkeys (the defaults if the settings cannot be read).
+fn configured_hotkeys(app: &AppHandle) -> settings::Hotkeys {
+    paths::data_dir(app)
+        .and_then(|d| settings::load(app, &d))
+        .map(|s| s.hotkeys)
+        .unwrap_or_default()
+}
+
+/// Block text for the reply window, next to `Copy anyway`.
+fn compose_block_message(block: &Block, next_part_hotkey: &str) -> String {
+    match block {
+        Block::TooManyParts { .. } => format!(
+            "{block} Shorten your text, or press Copy anyway and send it part by part with Copy next part ({next_part_hotkey})."
+        ),
+        _ => block.to_string(),
+    }
+}
+
+/// Block text for the overlay in Convert copied text, which has no `Copy anyway`.
+fn quick_block_message(block: &Block, compose_hotkey: &str) -> String {
+    match block {
+        Block::TooManyParts { .. } => format!(
+            "{block} Shorten your text and try again, or use Open reply window ({compose_hotkey})."
+        ),
+        _ => format!("{block} — use Open reply window ({compose_hotkey}) to write it yourself"),
+    }
 }
 
 /// Hotkey entry point for quick clipboard mode (Ctrl+Alt+E).
@@ -526,11 +554,7 @@ pub fn quick_clipboard(app: &AppHandle) {
             }
             Ok(Generated::Declined(reason)) => overlay::push(&app, Kind::Info, None, &reason),
             Ok(Generated::Blocked(draft, block)) => {
-                let hotkey = paths::data_dir(&app)
-                    .and_then(|d| settings::load(&app, &d))
-                    .map(|s| s.hotkeys.compose)
-                    .unwrap_or_default();
-                let message = format!("{block} — use Open reply window ({hotkey}) to write it yourself");
+                let message = quick_block_message(&block, &configured_hotkeys(&app).compose);
                 overlay::push(&app, Kind::Error, Some(&draft.en), &message);
             }
             Err(f) => overlay::push(&app, Kind::Error, f.raw.as_deref(), &f.message),
@@ -626,5 +650,22 @@ mod tests {
         // Asking again, in any order, keeps returning the matching client.
         assert_eq!(o, addr(state.client(Provider::OpenAi)));
         assert_eq!(a, addr(state.client(Provider::Anthropic)));
+    }
+
+    #[test]
+    fn too_long_messages_name_the_configured_hotkeys() {
+        let b = Block::TooManyParts { parts: 5, max: 4 };
+        assert_eq!(
+            compose_block_message(&b, "Ctrl+Alt+N"),
+            "Too long: 5 chat messages (max 4). Shorten your text, or press Copy anyway and send it part by part with Copy next part (Ctrl+Alt+N)."
+        );
+        assert_eq!(
+            quick_block_message(&b, "Ctrl+Alt+R"),
+            "Too long: 5 chat messages (max 4). Shorten your text and try again, or use Open reply window (Ctrl+Alt+R)."
+        );
+        // Other blocks keep their text.
+        assert_eq!(compose_block_message(&Block::Url, "X"), Block::Url.to_string());
+        assert!(quick_block_message(&Block::Url, "Ctrl+Alt+R")
+            .ends_with("use Open reply window (Ctrl+Alt+R) to write it yourself"));
     }
 }

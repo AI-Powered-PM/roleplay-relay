@@ -330,8 +330,18 @@ If you press `Ctrl+Alt+N` when there is no long message, the overlay says
 | `… at the end` | `…the end of the first part…` (all parts except the last) |
 | `None` | no label |
 
-**Too long.** If the text would need more than 4 parts, the app blocks it
-(`Blocked: the reply is too long (more than 4 chat messages)`, section 10). Write a shorter message.
+**Too long.** If the reply would need more than 4 chat messages, the app blocks it. In the reply
+window you see, for example,
+`Too long: 5 chat messages (max 4). Shorten your text, or press Copy anyway and send it part by part with Copy next part (Ctrl+Alt+N).`
+(with `Convert copied text` the overlay shows another second sentence, see section 10).
+You have two choices:
+
+- Shorten your text and send it again. This is the best choice.
+- Press `Copy anyway`. Part 1 goes to your clipboard. Then press `Ctrl+Alt+N` for each next part
+  until the overlay says `All parts copied`.
+
+The limit exists because many messages in a row look like spam to other players. In `RP` mode,
+write a shorter idea: the app makes it longer, not shorter.
 
 ### What the app remembers
 
@@ -528,7 +538,10 @@ app keeps these names as written. Add the names of your guild, your friends and 
 **Change a prompt.** Open the prompt file for the mode (`direct.md`, `rp.md`, `grammar.md`,
 `incoming.md`) and edit the instructions. Keep the words `{{persona}}` and `{{glossary}}` where
 they are, and keep `{{user_language}}` and `{{user_language_notes}}` in `incoming.md`, `direct.md`
-and `rp.md`. The app fills them with the language from `Your language`. Without
+and `rp.md`. The app fills them with the language from `Your language`.
+`direct.md` and `rp.md` may also contain `{{chat_limit}}` (the longest chat message the game allows,
+for example 255), and `rp.md` also `{{max_chars}}` (the longest whole reply, for example 1020). The
+app fills them in too. Keep them, so the model knows the limit. A prompt without them still works. Without
 `{{user_language}}` the model does not know your language (see the yellow note in section 4). Keep the reply format that the file asks for (`<en>` and `<back>` tags for `Direct`
 and `RP`). If you break the format you will see `Unexpected reply — nothing copied`.
 
@@ -601,7 +614,8 @@ the overlay shows the reason followed by
 | `Result still has Russian text` | You use `Русский` and the English text still has Cyrillic letters. | Same. |
 | `Result has non-English letters` | The English text has letters of another alphabet (Cyrillic, Greek, Chinese, Arabic, …) that are not your language. Letters like `é` and `ñ` are fine. | Change your message. `Copy anyway` is almost never a good idea. |
 | `Blocked: the reply looks like AI or translation text, not a chat line` | The text has words like `as an ai`, `language model`, `claude`, `anthropic`, `openai`, `chatgpt`, `translation:`, or a tag. The model probably talked to you instead of writing your line. | Press `Enter` again or change your message. Use `Copy anyway` only if these words are really part of what you want to say. |
-| `Blocked: the reply is too long (more than 4 chat messages)` | The text would need more than 4 chat messages. | Write a shorter message. See **Long messages** in section 6. |
+| `Too long: 5 chat messages (max 4). Shorten your text, or press Copy anyway and send it part by part with Copy next part (Ctrl+Alt+N).` | In the reply window: the reply needs more chat messages than the game allows in a row (here 5, the most is 4). The numbers and the hotkey in your message can differ. Nothing was copied. | Shorten your text. `Copy anyway` is fine for a planned long speech: it copies part 1, then press `Copy next part` for each other part. It is not a good idea in a busy public channel: many messages in a row look like spam. See **Long messages** in section 6. |
+| `Too long: 5 chat messages (max 4). Shorten your text and try again, or use Open reply window (Ctrl+Alt+R).` | The same block after `Convert copied text`. The overlay has no `Copy anyway`. | Shorten your text and press the hotkey again, or write it in the reply window. |
 
 The check for your language is exact for `简体中文` and `Русский` (it looks at the alphabet). For
 `Deutsch`, `Français` and `Español` it is weaker: a single leftover word without special

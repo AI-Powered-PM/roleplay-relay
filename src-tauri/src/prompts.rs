@@ -63,6 +63,7 @@ const OLD_DEFAULTS: &[(&str, &[&str])] = &[
         &[
             "d061b5315fe6072fafc9c966030b9babef9e01f7581493c374cd0e48f70454a0",
             "04964e7c902eb17bb7a9e58cb8d23ce3927402cdb97814e49344666950f95ce1",
+            "7b0221368ace8a13fd86d0976a7db25b99221653a01679d33c47b25d32901e7d",
         ],
     ),
     (
@@ -70,6 +71,7 @@ const OLD_DEFAULTS: &[(&str, &[&str])] = &[
         &[
             "74f7196a425b3a0a5256f960ea0e0e51a0075741e587ec4ab8d9522fa416a678",
             "13c8893c15543efab249a6c85222569a486afbeba83b31c9dd18abf99c952655",
+            "d3b4a965999a738a97bd40ea6e148fbdb9af0e6735735cc0f033a2395407f073",
         ],
     ),
     (
@@ -127,8 +129,8 @@ pub fn files_without_language(data_dir: &Path) -> Vec<&'static str> {
 }
 
 /// Read `prompts/<file>` and substitute `{{persona}}` / `{{glossary}}` from the character folder
-/// `{{user_language}}` / `{{user_language_notes}}` from `lang`, and `{{game_name}}` from the
-/// active game profile.
+/// `{{user_language}}` / `{{user_language_notes}}` from `lang`, and `{{game_name}}`,
+/// `{{chat_limit}}`, `{{max_chars}}` from the active game profile.
 /// A missing prompt file is an error (the caller restores defaults and retries once);
 /// missing persona/glossary files are just empty.
 pub fn build_system(
@@ -142,12 +144,20 @@ pub fn build_system(
     // Persona and glossary are user-editable files; they get the same tag treatment as chat text.
     let persona = neutralize_tags(read_optional(&char_dir.join("persona.md"))?.trim());
     let glossary = neutralize_tags(read_optional(&char_dir.join("glossary.md"))?.trim());
-    Ok(template
+    let filled = template
         .replace("{{persona}}", &persona)
         .replace("{{glossary}}", &glossary)
         .replace("{{user_language_notes}}", lang.notes)
-        .replace("{{user_language}}", lang.prompt_name)
-        .replace("{{game_name}}", crate::game::active().display_name))
+        .replace("{{user_language}}", lang.prompt_name);
+    Ok(fill_game(&filled, crate::game::active()))
+}
+
+/// `{{game_name}}`, `{{chat_limit}}` and `{{max_chars}}` (`chat_limit` x `max_parts`, the longest
+/// reply the Output guard lets through) from a game profile.
+fn fill_game(text: &str, game: &crate::game::GameProfile) -> String {
+    text.replace("{{game_name}}", game.display_name)
+        .replace("{{chat_limit}}", &game.chat_limit.to_string())
+        .replace("{{max_chars}}", &(game.chat_limit * game.max_parts).to_string())
 }
 
 /// The one user message: optional `<recent_chat>` then `<input>`. All text is neutralized here,
@@ -248,6 +258,48 @@ mod tests {
                 assert!(!t.contains(word), "{name} names {word}");
             }
         }
+    }
+
+    #[test]
+    fn bundled_prompts_hold_no_literal_chat_limit() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/prompts");
+        for name in ["incoming.md", "direct.md", "rp.md", "grammar.md"] {
+            let t = fs::read_to_string(root.join(name)).unwrap();
+            assert!(!t.contains("255"), "{name} hardcodes the chat limit");
+        }
+        let rp = fs::read_to_string(root.join("rp.md")).unwrap();
+        assert!(rp.contains("{{chat_limit}}") && rp.contains("{{max_chars}}"));
+        let direct = fs::read_to_string(root.join("direct.md")).unwrap();
+        assert!(direct.contains("{{chat_limit}}") && !direct.contains("{{max_chars}}"));
+    }
+
+    #[test]
+    fn chat_limit_and_max_chars_come_from_the_profile() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/prompts");
+        let rp = fs::read_to_string(root.join("rp.md")).unwrap();
+        let test_profile = crate::game::GameProfile {
+            id: "test",
+            display_name: "Test Game",
+            chat_limit: 200,
+            max_parts: 3,
+            strip_chars: &[],
+        };
+        let filled = fill_game(&rp, &test_profile);
+        assert!(filled.contains("under 200 characters"));
+        assert!(filled.contains("longer than 600 characters"));
+        assert!(!filled.contains("{{chat_limit}}") && !filled.contains("{{max_chars}}"));
+        // The real profile gives 255 and 1020.
+        let wow = fill_game("{{chat_limit}}/{{max_chars}}", crate::game::active());
+        assert_eq!(wow, "255/1020");
+    }
+
+    #[test]
+    fn prompts_without_the_new_placeholders_still_work() {
+        let d = temp("noplace");
+        fs::write(d.join("prompts/rp.md"), "Old edited prompt, 255 chars. {{persona}}").unwrap();
+        let s = build_system(&d, Mode::Rp, "default", ru()).unwrap();
+        assert!(s.starts_with("Old edited prompt, 255 chars."));
+        let _ = fs::remove_dir_all(&d);
     }
 
     #[test]
