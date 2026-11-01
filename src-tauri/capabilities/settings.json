@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings-window",
-  "description": "Settings window: settings and API-key commands only. Folder opening is done by the Rust command open_data_folder (fixed sub-folders), so no opener or fs permission is granted to the WebView.",
+  "description": "Settings window: settings and API-key commands only (plus event listen, for the close request). Folder opening is done by the Rust command open_data_folder (fixed sub-folders), so no opener or fs permission is granted to the WebView.",
   "windows": ["settings"],
   "permissions": [
     "allow-has-api-key",
@@ -14,6 +14,12 @@
     "allow-get-autostart",
     "allow-set-autostart",
     "allow-list-languages",
-    "allow-get-prompt-language-notes"
+    "allow-get-prompt-language-notes",
+    "allow-test-api-key",
+    "allow-get-game-profile",
+    "allow-get-last-mode",
+    "allow-preview-overlay",
+    "allow-close-settings",
+    "core:event:allow-listen"
   ]
 }

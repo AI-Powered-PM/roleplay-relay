@@ -28,6 +28,12 @@ pub fn clear_api_key(provider: Provider) -> Result<(), String> {
     Ok(())
 }
 
+/// Settings `Test key`: one minimal request with the saved key. Returns only the mapped error.
+#[tauri::command]
+pub async fn test_api_key(app: AppHandle, provider: Provider) -> Result<(), String> {
+    actions::test_api_key(&app, provider).await
+}
+
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<settings::Settings, String> {
     settings::load(&app, &paths::data_dir(&app)?)
@@ -77,6 +83,49 @@ pub fn open_data_folder(app: AppHandle, sub: String) -> Result<(), String> {
     app.opener()
         .open_path(dir.to_string_lossy(), None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameInfo {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub chat_limit: usize,
+}
+
+/// Read-only: lets Settings show the chat limit without hardcoding it.
+#[tauri::command]
+pub fn get_game_profile() -> GameInfo {
+    let p = crate::game::active();
+    GameInfo {
+        id: p.id,
+        display_name: p.display_name,
+        chat_limit: p.chat_limit,
+    }
+}
+
+/// The mode `Convert copied text` uses (the last one picked in the reply window).
+#[tauri::command]
+pub fn get_last_mode(app: AppHandle) -> Mode {
+    paths::data_dir(&app)
+        .map(|d| settings::load_last_mode(&app, &d))
+        .unwrap_or(Mode::Direct)
+}
+
+/// Settings `Preview overlay`: shows a sample with the unsaved form values. No request.
+#[tauri::command]
+pub fn preview_overlay(app: AppHandle, overlay: settings::OverlaySettings, user_language: String) {
+    crate::overlay::preview(&app, overlay, &user_language);
+}
+
+/// Hides the Settings window. Closing it asks the form first (`settings://close-requested`),
+/// then the form calls this once there is nothing left to save or the user chose.
+#[tauri::command]
+pub fn close_settings(app: AppHandle) {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.hide();
+    }
 }
 
 /// The `Your language` dropdown entries, in table order.

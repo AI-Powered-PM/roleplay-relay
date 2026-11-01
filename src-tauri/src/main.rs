@@ -103,6 +103,11 @@ fn main() {
             commands::get_hotkey_status,
             commands::get_autostart,
             commands::set_autostart,
+            commands::test_api_key,
+            commands::get_game_profile,
+            commands::get_last_mode,
+            commands::preview_overlay,
+            commands::close_settings,
             commands::list_languages,
             commands::get_prompt_language_notes,
             commands::get_compose_state,
@@ -139,11 +144,18 @@ fn main() {
                     compose::close(window.app_handle());
                 }
             }
-            // Closing Settings hides it; the app lives in the tray.
+            // Closing Settings never destroys it (the app lives in the tray). The form decides:
+            // it hides the window at once, or asks `Save changes?` first.
             if window.label() == "settings" {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    let _ = window.hide();
+                    use tauri::Emitter;
+                    if window
+                        .emit_to("settings", "settings://close-requested", ())
+                        .is_err()
+                    {
+                        let _ = window.hide();
+                    }
                 }
             }
         })

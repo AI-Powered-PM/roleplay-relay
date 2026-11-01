@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-game-profile"
+description = "Enables the get_game_profile command without any pre-configured scope."
+commands.allow = ["get_game_profile"]
+
+[[permission]]
+identifier = "deny-get-game-profile"
+description = "Denies the get_game_profile command without any pre-configured scope."
+commands.deny = ["get_game_profile"]

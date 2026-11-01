@@ -17,6 +17,8 @@
         "title": "Roleplay Relay — Settings",
         "url": "settings.html",
         "width": 700,
+        "minWidth": 600,
+        "minHeight": 480,
         "height": 640,
         "visible": false,
         "center": true

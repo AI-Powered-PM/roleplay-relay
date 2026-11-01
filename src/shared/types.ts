@@ -32,6 +32,14 @@ export interface Settings {
 export interface LanguageOption {
   code: string;
   label: string;
+  /** "German", "Chinese", ... for UI hints. */
+  englishName: string;
+}
+
+export interface GameInfo {
+  id: string;
+  displayName: string;
+  chatLimit: number;
 }
 
 export type OutgoingMode = "direct" | "rp" | "grammar";

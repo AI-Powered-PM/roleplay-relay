@@ -6,6 +6,9 @@ use serde::Serialize;
 
 pub const DEFAULT_CODE: &str = "ru";
 
+/// The English line of the Settings overlay preview (no request is made for it).
+pub const SAMPLE_ORIGINAL: &str = "Well met, traveler. Will you share our fire tonight?";
+
 /// How an entry detects text left over in the user's language inside an English result.
 enum Leftover {
     /// Any single character of the script (or its punctuation) is a hit.
@@ -28,6 +31,8 @@ pub struct Language {
     pub prompt_name: &'static str,
     /// Goes into prompts as `{{user_language_notes}}`.
     pub notes: &'static str,
+    /// `SAMPLE_ORIGINAL` in this language: what the Settings overlay preview shows.
+    pub sample_translation: &'static str,
     leftover: Leftover,
     /// Extra English lines (beyond the shared RP lines in the tests) that must not be flagged.
     #[cfg_attr(not(test), allow(dead_code))]
@@ -119,6 +124,7 @@ static LANGUAGES: [Language; 5] = [
         english_name: "German",
         prompt_name: "German",
         notes: "Use natural informal German as players write in game chat: \"du\" for one person, \"ihr\" for several. Keep names of people, places and game terms in English.",
+        sample_translation: "Sei gegrüßt, Reisender. Teilst du heute Nacht unser Feuer?",
         leftover: Leftover::Latin {
             letters: "äöüÄÖÜß",
             words: &[
@@ -143,6 +149,7 @@ static LANGUAGES: [Language; 5] = [
         english_name: "Chinese",
         prompt_name: "Simplified Chinese",
         notes: "Use Simplified Chinese characters as used in mainland China, natural casual register. Keep names of people, places and game terms in English; do not transliterate them into Chinese characters.",
+        sample_translation: "幸会，旅行者。今晚你愿意和我们一起围坐篝火吗？",
         leftover: Leftover::Chars(is_cjk),
         ok_samples: &["Meet me at Thunder Bluff at 8, friend."],
         leftover_samples: &["Well met, 朋友", "Well met， friend", "雷霆崖", "Meet me。"],
@@ -153,6 +160,7 @@ static LANGUAGES: [Language; 5] = [
         english_name: "French",
         prompt_name: "French",
         notes: "Use natural informal French as players write in game chat: \"tu\" for one person, \"vous\" for several. Keep names of people, places and game terms in English.",
+        sample_translation: "Salutations, voyageur. Partageras-tu notre feu cette nuit ?",
         leftover: Leftover::Latin {
             letters: "àâæçèéêëîïôœùûÿÀÂÆÇÈÉÊËÎÏÔŒÙÛŸ«»",
             words: &[
@@ -177,6 +185,7 @@ static LANGUAGES: [Language; 5] = [
         english_name: "Spanish",
         prompt_name: "Mexican Spanish",
         notes: "Use Latin American Spanish as spoken in Mexico: \"ustedes\" for plural \"you\" (never \"vosotros\"), Mexican everyday vocabulary, natural informal register. Keep names of people, places and game terms in English.",
+        sample_translation: "Bienvenido, viajero. ¿Compartirás nuestro fuego esta noche?",
         leftover: Leftover::Latin {
             letters: "¿¡ñÑáéíóúÁÉÍÓÚ",
             words: &[
@@ -201,6 +210,7 @@ static LANGUAGES: [Language; 5] = [
         english_name: "Russian",
         prompt_name: "Russian",
         notes: "",
+        sample_translation: "Рад встрече, путник. Разделишь с нами огонь этой ночью?",
         leftover: Leftover::Chars(is_cyrillic),
         ok_samples: &["Well met, friend."],
         leftover_samples: &["Well met, друг", "Ё", "привет"],
@@ -225,9 +235,12 @@ pub fn resolve(code: &str) -> &'static Language {
 
 /// What the Settings dropdown shows.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct LanguageOption {
     pub code: &'static str,
     pub label: &'static str,
+    /// For UI hints such as "Shows the Chinese translation".
+    pub english_name: &'static str,
 }
 
 pub fn options() -> Vec<LanguageOption> {
@@ -236,6 +249,7 @@ pub fn options() -> Vec<LanguageOption> {
         .map(|l| LanguageOption {
             code: l.code,
             label: l.label,
+            english_name: l.english_name,
         })
         .collect()
 }
@@ -294,6 +308,14 @@ mod tests {
         );
         assert_eq!(resolve("ru").notes, "");
         assert!(resolve("es-MX").notes.contains("never \"vosotros\""));
+    }
+
+    #[test]
+    fn every_language_has_a_preview_sample() {
+        for l in all() {
+            assert!(!l.sample_translation.is_empty(), "{}", l.code);
+        }
+        assert!(resolve("zh-CN").sample_translation.contains('今'));
     }
 
     #[test]

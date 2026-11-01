@@ -420,6 +420,14 @@ mod tests {
     }
 
     #[test]
+    fn opacity_is_stored_as_the_two_decimals_the_form_writes() {
+        let mut s = Settings::default();
+        s.overlay.opacity = 0.82;
+        let json = serde_json::to_string(&s.sanitized()).unwrap();
+        assert!(json.contains("\"opacity\":0.82"), "{json}");
+    }
+
+    #[test]
     fn serializes_without_any_key_field() {
         let json = serde_json::to_string(&Settings::default())
             .unwrap()

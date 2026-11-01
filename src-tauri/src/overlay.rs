@@ -189,7 +189,38 @@ fn push_update(app: &AppHandle, update: Update) {
             .unwrap_or_else(|e| e.into_inner())
             .push(update.clone());
     }
-    present(app, &update, &s);
+    show_timed(app, &update, &s);
+}
+
+/// Settings → `Preview overlay`: a sample entry drawn with the values currently in the form
+/// (out-of-range numbers are clamped like on save). Same window, same no-activate and
+/// click-through rules as any update; no request is made and nothing enters the history.
+pub fn preview(app: &AppHandle, form: settings::OverlaySettings, user_language: &str) {
+    let s = settings::Settings {
+        overlay: form,
+        ..settings::Settings::default()
+    }
+    .sanitized();
+    let lang = crate::languages::resolve(user_language);
+    let update = Update {
+        kind: Kind::Result,
+        original: Some(crate::languages::SAMPLE_ORIGINAL.to_owned()),
+        text: lang.sample_translation.to_owned(),
+        back: None,
+        note: Some("Preview".to_owned()),
+        parts: None,
+        current: None,
+        style: style_from(&s),
+    };
+    show_timed(app, &update, &s);
+}
+
+/// Show `update`, then hide it after the auto-hide time unless the toggle pinned the overlay.
+fn show_timed(app: &AppHandle, update: &Update, s: &settings::Settings) {
+    let Some(state) = app.try_state::<OverlayState>() else {
+        return;
+    };
+    present(app, update, s);
 
     let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
     if state.pinned.load(Ordering::SeqCst) {

@@ -63,8 +63,8 @@ for the one you pick.
 **OpenAI support is beta.** It was tested only against a mock server, not against the real
 OpenAI service. The author does not use it day to day. Anthropic is the main, tested path.
 If a request to OpenAI fails or gives odd results, please open a GitHub issue with the
-`provider error` template and paste the matching lines from `logspp.log` (section 11).
-Remove chat text from the lines first if `debugLogChat` was on.
+`provider error` template and paste the matching lines from `logs\app.log` (section 11).
+Remove chat text from the lines first if `Save chat text in the log (for bug reports)` was on.
 
 Both work the same way in the app. You can save both keys and switch any time.
 Each service needs **credits on its own account**. Without credits you see
@@ -84,28 +84,37 @@ Each service needs **credits on its own account**. Without credits you see
 
 **Choose the provider and put the key in the app**
 
-1. Tray icon → `Settings`.
-2. In the `AI provider` section, pick `Anthropic (Claude)` or `OpenAI (beta)` in the `AI provider`
-   list. Click `Save settings` at the bottom. The next request already goes to this service.
-   No restart is needed.
-3. Find the key section of the provider you picked: `Anthropic API key` or `OpenAI API key`.
-   Click the field with the hint `Paste your API key` and paste the key (Ctrl+V).
+1. Tray icon → `Settings`. At the top you see a banner. While the app is not ready, it is yellow
+   and says what is missing, for example `No Anthropic API key. Add it in AI service below.`
+2. In the card `AI service`, pick `Anthropic (Claude)` or `OpenAI (beta)` in the `AI provider` list.
+   The card shows the key row of the provider you picked. Under the key row you see a hint like
+   `Get a key at console.anthropic.com.` (for OpenAI: `Get a key at platform.openai.com.`).
+3. Next to `API key` a small label tells you the state: `⚠ No key` or `✓ Key saved`.
+4. Click the field with the hint `Paste your API key` and paste the key (Ctrl+V).
    You will see dots, not the key.
-4. Click `Save key`.
-5. The text under the title changes to `API key is set`, and you see `Key saved`.
+5. Click `Save key`. The label changes to `✓ Key saved` and you see `Key saved`.
    The field is empty again. This is normal: the app never shows the key again.
+   Keys are saved right away. You do not need `Save settings` for them.
+6. Click `Test key`. The app sends one tiny request with the **saved** key. You see
+   `✓ Key works`, or the reason it failed (for example `Invalid Anthropic API key`, or
+   `No credits left on your Anthropic account`). `Test key` is grey while no key is saved.
+7. If you changed `AI provider`, click `Save settings` in the bar at the bottom of the window.
+   The next request already goes to this service. No restart is needed.
+8. The banner turns green: `Ready. Copy a chat line in the game and press Ctrl+Alt+T.`
+   (it shows your own hotkey, if you changed it).
 
-Each service has its own key field. Saving a key for one does not touch the other one.
+The card shows only the provider you picked. The other provider's key is still there: pick it
+in the list and its key row appears. Saving a key for one does not touch the other one.
 Switching `AI provider` never removes a key or your model choices.
 
-**Check that it works**: copy any English chat line and press `Ctrl+Alt+T` (section 6).
-You should see a translation in the overlay. If you see a red message instead, find it in
-section 10.
+**Check that it works**: press `Test key`. You can also copy any English chat line and press
+`Ctrl+Alt+T` (section 6). You should see a translation in the overlay. If you see a red
+message instead, find it in section 10. The banner only checks that a key is saved. It does not
+check that the key is good: that is what `Test key` is for.
 
 **Replace the key**: paste the new key and click `Save key`.
 
-**Remove the key**: click `Clear key` in that provider's section. You will see `Key removed`
-and `No API key set`.
+**Remove the key**: click `Clear key`. You will see `Key removed` and `⚠ No key`.
 
 **Where the keys are stored**: in Windows Credential Manager (Control Panel → Credential Manager →
 Windows Credentials), one entry per service. They are not in any app file.
@@ -120,18 +129,18 @@ or contains spaces. Copy the key again, without extra text.
 If you see `Could not access Windows Credential Manager`, restart the app. If it
 continues, restart Windows.
 
-Next, pick your language (section 4). All other fields in `Settings` are described in section 8. The buttons `Open prompts folder`,
-`Open characters folder` and `Open logs folder` open the matching folder in
-`%APPDATA%\RoleplayRelay\`.
+Next, pick your language (section 4). All other fields in `Settings` are described in section 8.
+The buttons `Open characters folder`, `Open prompts folder` and `Open logs folder` open the
+matching folder in `%APPDATA%\RoleplayRelay\`.
 
 ## 4. Your language
 
 Right after you save the API key, choose the language you read and think in.
 
 1. Tray icon → `Settings`.
-2. In the `Language` section, open the box `Your language`.
+2. In the card `Your language`, open the box `Your language`.
 3. Pick one: `Deutsch`, `简体中文`, `Français`, `Español` or `Русский`.
-4. Click `Save settings`. You see `Settings saved`.
+4. Click `Save settings` in the bar at the bottom. You see `Saved`.
 
 `Русский` is the default. You do not need to restart. The new language is used for the **next**
 request.
@@ -139,7 +148,7 @@ request.
 **What your language changes**
 
 - Translations of incoming chat (`Ctrl+Alt+T`) are written in your language.
-- Back-translations in the overlay (after compose or quick mode) are written in your language.
+- Back-translations in the overlay (after `Open reply window` or `Convert copied text`) are written in your language.
 - When the model refuses a message, the reason is in your language.
 - You can write your own messages in your language (or in English, or mixed).
 - The safety check looks for leftover words of your language in the English result
@@ -148,6 +157,7 @@ request.
 **What it does not change**
 
 - The app itself stays in English: menus, buttons, hints and error messages.
+- The first hint under `Hotkeys` names your language, for example `Shows the Chinese translation in the overlay.`
 - The English text you send to the game is always English.
 
 **Which language is which**
@@ -191,7 +201,9 @@ The app does not read the game's chat by itself. It only sees what you copy.
 
 ## 6. How to use it
 
-### Translate incoming chat (`Ctrl+Alt+T`)
+### `Translate copied line` (`Ctrl+Alt+T`)
+
+Use this to **read** a line someone else wrote. Your clipboard is not changed. (To **send** your own line, use `Convert copied text` below, which replaces your clipboard.)
 
 1. In the game, copy a chat line with `Ctrl+C` (see section 5).
 2. Press `Ctrl+Alt+T`.
@@ -199,7 +211,7 @@ The app does not read the game's chat by itself. It only sees what you copy.
    Then it shows:
    - the original line (small, dimmed, at most 2 lines),
    - the translation in your language below it.
-4. The overlay hides itself after `Auto-hide (seconds)` seconds (default 12).
+4. The overlay hides itself after the time in `Auto-hide after` (default 12 seconds).
 
 Your clipboard is **not changed**. You can press `Ctrl+Alt+T` again later with the same text.
 
@@ -223,13 +235,13 @@ Good to know:
 - If you press the hotkey again while a translation is running, or hold the key down,
   the extra presses are ignored. One press = one request.
 
-### Write your own message: compose (`Ctrl+Alt+R`)
+### `Open reply window` (`Ctrl+Alt+R`)
 
 Use this when you want to say something in English but you think in your language.
 
 1. Press `Ctrl+Alt+R`. A small dark window opens in the middle of the screen. The cursor is
    already in the text box (hint: `Type in your language or English…`).
-2. Pick a mode (see below). The window remembers the last mode you used.
+2. Pick a mode (see below). The window remembers the last mode you used. (`Convert copied text` uses it too.)
 3. Type your message. Press `Enter` to send it. (`Shift+Enter` makes a new line.)
 4. A small spinner turns at the top right of the window while the app works.
 5. When it is ready, the window closes **and the window that was in front before comes back**
@@ -240,7 +252,7 @@ Use this when you want to say something in English but you think in your languag
    - the English text,
    - under it, a back-translation in your language, so you can check the meaning.
 
-Keys in the compose window:
+Keys in the reply window:
 
 | Key | What it does |
 |---|---|
@@ -282,18 +294,18 @@ can get a message rejected.)
 See **Long messages** below for what happens when the English text is longer than 255
 characters.
 
-### Quick mode: clipboard in, English out (`Ctrl+Alt+E`)
+### `Convert copied text` (`Ctrl+Alt+E`)
 
-Use this when you typed (or pasted) text into the game's chat box and copied it yourself.
+Use this to **send** your own line when you typed (or pasted) text into the game's chat box and copied it yourself. Your clipboard is **replaced** by the English result. (To only read a line from someone else, use `Translate copied line`.)
 
 1. Copy your text with `Ctrl+C`.
 2. Press `Ctrl+Alt+E`. The overlay says `Working…`.
-3. The app uses the **last mode** you used in the compose window (`Direct` if you never used it).
-4. The clipboard now holds the English text, and the overlay shows it (same as compose).
+3. The app uses the **last mode** you used in the reply window (`Direct` if you never used it). The hint under `Convert copied text` in `Settings` shows which mode that is, for example `Uses RP mode`.
+4. The clipboard now holds the English text, and the overlay shows it (same as the reply window).
 5. Paste it in the game and press `Enter` yourself.
 
 If the safety check blocks the answer, the overlay is red and says why, and your clipboard is
-**not changed**. There is no `Copy anyway` here. Open compose (`Ctrl+Alt+R`) and try again.
+**not changed**. There is no `Copy anyway` here. Use `Open reply window` (`Ctrl+Alt+R`, or the combination you set) and try again.
 
 ### Long messages: `Ctrl+Alt+N`
 
@@ -302,7 +314,7 @@ cuts it into parts. It cuts after a full sentence when it can. If a sentence is 
 cuts between words. It cuts inside a word only if one word alone is longer than 255 characters.
 Every part is 255 characters or less.
 
-1. Compose (or quick mode) finishes. **Part 1** is in your clipboard.
+1. The reply window (or `Convert copied text`) finishes. **Part 1** is in your clipboard.
 2. The overlay shows **all parts** as a list. The part in your clipboard is highlighted.
    Parts you already copied are dimmed. The top line says, for example,
    `Part 1 of 3 copied — paste it, then press Ctrl+Alt+N for the next part`.
@@ -313,16 +325,16 @@ Every part is 255 characters or less.
    If you press `Ctrl+Alt+N` again, nothing is copied and the overlay says `All parts copied`.
 
 If you press `Ctrl+Alt+N` when there is no long message, the overlay says
-`No long message to continue`. A new message from compose or quick mode replaces the old list.
+`No long message to continue`. A new message from the reply window or `Convert copied text` replaces the old list.
 `Ctrl+Alt+N` never pastes or sends anything. You still paste and press `Enter` yourself.
 
-**Part labels.** The `Split marker` setting (section 8) decides how parts are marked:
+**Part labels.** The `Part marker` setting (section 8) decides how parts are marked:
 
-| `Split marker` | Example |
+| `Part marker` | Example |
 |---|---|
-| `(n/m)` (default) | `…the end of the first part. (1/3)` |
-| `…` | `…the end of the first part…` (all parts except the last) |
-| `none` | no label |
+| `(1/3) at the end` (default) | `…the end of the first part. (1/3)` |
+| `… at the end` | `…the end of the first part…` (all parts except the last) |
+| `None` | no label |
 
 **Too long.** If the text would need more than 4 parts, the app blocks it
 (`Blocked: the reply is too long (more than 4 chat messages)`, section 10). Write a shorter message.
@@ -346,17 +358,22 @@ still blocked by the safety check (section 10).
   If the list is too tall for the overlay, the oldest ones are cut off at the top.
   Press `Ctrl+Alt+O` again to hide it.
 - The history is kept only while the app runs. It is cleared when you quit.
-- Change corner, size and look in `Settings` (see section 8).
+- Change corner, size and look in `Settings` (see section 8). The button `Preview overlay` shows a sample with the values you typed, before you save them.
 
 ## 7. Hotkey cheat sheet
 
+The action column uses the exact labels from `Settings`, in the same groups.
+
 | Hotkey | Action | Result goes to |
 |---|---|---|
-| `Ctrl+Alt+T` | Translate the copied chat line (English → your language) | Overlay. Clipboard is not changed. |
-| `Ctrl+Alt+R` | Open the compose window and write a message | Clipboard (English text) and overlay (text + back-translation) |
-| `Ctrl+Alt+E` | Quick mode: turn the copied text into English, with the last compose mode | Clipboard (English text) and overlay |
-| `Ctrl+Alt+N` | Copy the next part of a long message | Clipboard (that part) and overlay (all parts, current one highlighted) |
-| `Ctrl+Alt+O` | Show or hide the overlay | Overlay |
+| **Reading chat** | | |
+| `Ctrl+Alt+T` | `Translate copied line`: translate the copied chat line (English → your language) | Overlay. Clipboard is not changed. |
+| **Writing replies** | | |
+| `Ctrl+Alt+R` | `Open reply window`: write a message in any language | Clipboard (English text) and overlay (text + back-translation) |
+| `Ctrl+Alt+E` | `Convert copied text`: turn your copied text into English, with the last mode picked in the reply window | Clipboard (English text replaces it) and overlay |
+| `Ctrl+Alt+N` | `Copy next part`: copy the next part of a long message | Clipboard (that part) and overlay (all parts, current one highlighted) |
+| **Overlay** | | |
+| `Ctrl+Alt+O` | `Show/Hide overlay` | Overlay |
 
 You can change every hotkey in `Settings` (section 8). If a hotkey is already used by another
 app, Windows shows a notification `Roleplay Relay` with the text
@@ -365,29 +382,94 @@ Close the other app or choose another key.
 
 ## 8. Settings
 
-Open the tray icon → `Settings`. Change what you want and click `Save settings`. You see
-`Settings saved`. Hotkeys, `AI provider`, models, overlay values and `Your language` work at once. No restart is needed.
-The API keys and `Start with Windows` work on their own; they do not need `Save settings`.
+Open the tray icon → `Settings`. The window has these parts, from top to bottom: a status banner,
+then the cards `AI service`, `Your language`, `Hotkeys`, `Overlay`, `Long replies`,
+`Character and prompts`, `General`, and a closed section `Advanced`. At the bottom there is a bar
+that is always visible.
+
+**Saving.** Change what you want. When the form is different from what is saved, the bar says
+`Unsaved changes`. Click `Save settings` (amber) to keep the changes. You see `Saved` for two
+seconds. `Discard` throws the changes away and shows the saved values again. If you close the
+window with unsaved changes, a box asks `Save changes?` with the buttons `Save`, `Discard` and
+`Cancel`. `Save settings` is grey while nothing changed or while a number is wrong.
+`AI provider`, hotkeys, models, overlay values and `Your language` work at once after saving.
+No restart is needed. API keys (`Save key`, `Clear key`) and `Start with Windows` work on their
+own; they do not need `Save settings`. Only `Save settings` and `Save key` are amber. All other
+buttons have only an outline.
+
+**Status banner.** Green: `Ready. Copy a chat line in the game and press Ctrl+Alt+T.` (with your
+own hotkey). Yellow: one line for each problem, for example
+`No Anthropic API key. Add it in AI service below.` or
+`Translate copied line hotkey is taken by another app. Pick another combination below.`
+
+**Card `AI service`**
 
 | Field | What it does | Default | When to change it |
 |---|---|---|---|
-| `AI provider` | Which service gets your requests: `Anthropic (Claude)` or `OpenAI (beta)`. Each has its own key and its own models. See section 3. | `Anthropic (Claude)` | When you want to try the other service, or one account has no credits. |
-| `Anthropic API key`, `OpenAI API key` | Write-only fields for the keys. Buttons `Save key` and `Clear key`. | empty | Once per provider you use. |
-| `Start with Windows` (`General`) | Starts the app in the tray when you log in to Windows. | off | Turn on if you use the app every day. |
-| `Your language` (`Language`) | The language of translations and back-translations: `Deutsch`, `简体中文`, `Français`, `Español`, `Русский`. See section 4. | `Русский` | Set it once, right after the API key. |
-| `Translate clipboard` | Hotkey for translating a copied chat line. | `Ctrl+Alt+T` | When another app uses this key. |
-| `Compose reply` | Hotkey for the compose window. | `Ctrl+Alt+R` | Same. |
-| `Quick clipboard mode` | Hotkey for quick mode. | `Ctrl+Alt+E` | Same. |
-| `Copy next part` | Hotkey for the next part of a long message. | `Ctrl+Alt+N` | Same. |
-| `Show/Hide overlay` | Hotkey for the overlay. | `Ctrl+Alt+O` | Same. |
-| `Incoming`, `Direct`, `RP`, `Grammar` rows in `Models — Anthropic` and `Models — OpenAI` | Model name, `Max tokens` (the longest answer allowed) and `Temperature` (0 = careful, 1 = more creative; empty = model default) for each mode. For `claude-*-5` models (for example `claude-sonnet-5-5` and `claude-haiku-5-5`) the `Temperature` box is grey and says `ignored`: those models only accept their own default, so the app does not send it. There is one table for each provider. The table of the active provider has `(active)` in its title. | See section 12 | Change a model if you want a cheaper or stronger one. Use only real model names from your provider's model list. Models get retired, so check the list now and then. |
+| `AI provider` | Which service gets your requests: `Anthropic (Claude)` or `OpenAI (beta)`. Only the key row of the chosen provider is shown. See section 3. | `Anthropic (Claude)` | When you want to try the other service, or one account has no credits. |
+| `API key` | A label (`✓ Key saved` or `⚠ No key`) and a write-only field `Paste your API key`. Buttons `Save key`, `Test key`, `Clear key`. `Test key` sends one tiny request with the saved key and shows `✓ Key works` or the error. | empty | Once per provider you use. |
+
+**Card `Your language`**
+
+| Field | What it does | Default | When to change it |
+|---|---|---|---|
+| `Your language` | The language of translations and back-translations: `Deutsch`, `简体中文`, `Français`, `Español`, `Русский`. See section 4. | `Русский` | Set it once, right after the API key. |
+
+**Card `Hotkeys`.** Three small headings group the hotkeys. Under every hotkey there is a short
+hint that says what it does.
+
+| Heading | Field | Default | Hint under it |
+|---|---|---|---|
+| `Reading chat` | `Translate copied line` | `Ctrl+Alt+T` | `Copy someone's chat line first. Shows the German translation in the overlay. Your clipboard stays the same.` (the language name follows `Your language`, and changes at once, before you save) |
+| `Writing replies` | `Open reply window` | `Ctrl+Alt+R` | `Type in any language. The English result goes to your clipboard.` |
+| `Writing replies` | `Convert copied text` | `Ctrl+Alt+E` | `Copy your own text first. The English result replaces your clipboard. Uses RP mode, the last mode you picked in the reply window.` (`Direct`, `RP` or `Grammar`. It updates when you come back to `Settings`.) |
+| `Writing replies` | `Copy next part` | `Ctrl+Alt+N` | `For replies longer than 255 characters. Copies the next part.` (the number is the chat limit of the game) |
+| `Overlay` | `Show/Hide overlay` | `Ctrl+Alt+O` | `Shows your last 10 messages and translations.` |
+
+Change a hotkey only when another app uses the same keys. `Reset` puts the default back.
+
+**Card `Overlay`**
+
+| Field | What it does | Default | When to change it |
+|---|---|---|---|
 | `Position` | Screen corner of the overlay: `Top right`, `Top left`, `Bottom right`, `Bottom left`. | `Top right` | Move it away from your chat or action bars. |
-| `Width` | Overlay width in pixels (240–900). | 420 | Wider = fewer lines. |
-| `Font size` | Text size in the overlay (12–32). | 16 | Bigger if it is hard to read. |
-| `Opacity` | How see-through the overlay is (0.2–1). | 0.82 | Lower it to see the game behind. |
-| `Auto-hide (seconds)` | The overlay hides itself after this time (2–120). | 12 | Raise it if you read slowly. |
-| `Split marker` | How the parts of a long message are labelled: `(n/m)`, `…` or `none`. | `(n/m)` | Use `none` if you do not want labels in the chat. |
-| `Log chat text (debugLogChat)` | Writes chat text to the log file. | off | Only when you look for a problem. Turn it off again. |
+| `Width` (`px`) | Overlay width in pixels (240–900). | 420 | Wider = fewer lines. |
+| `Font size` (`px`) | Text size in the overlay (12–32). | 16 | Bigger if it is hard to read. |
+| `Opacity` | A slider, 20–100 %, shown for example as `82 %`. How see-through the overlay is. | `82 %` | Lower it to see the game behind. |
+| `Auto-hide after` (`seconds`) | The overlay hides itself after this time (2–120). | 12 | Raise it if you read slowly. |
+| `Preview overlay` | Shows the overlay with a sample line and a sample translation in your language, using the values in the form (even before you save). It does not take focus and the mouse goes through it. | | After you change position, size or opacity. |
+
+If a number is outside its range you see a red text under it, for example
+`Width must be a whole number from 240 to 900.` `Save settings` and `Preview overlay` stay grey
+until you fix it.
+
+**Card `Long replies`**
+
+| Field | What it does | Default | When to change it |
+|---|---|---|---|
+| `Part marker` | How the parts of a long message are labelled: `(1/3) at the end`, `… at the end` or `None`. | `(1/3) at the end` | Use `None` if you do not want labels in the chat. |
+
+The hint says `Replies longer than 255 characters are split into parts. The marker shows which part this is.`
+
+**Card `Character and prompts`**
+
+- `Open characters folder` — your character (`persona.md`) and glossary.
+- `Open prompts folder` — the instructions for each mode. For advanced users.
+
+**Card `General`**
+
+| Field | What it does | Default | When to change it |
+|---|---|---|---|
+| `Start with Windows` | Starts the app in the tray when you log in to Windows. It applies right away. | off | Turn on if you use the app every day. |
+
+**Section `Advanced`** (click `▸ Advanced` to open it; it is closed when the window opens).
+
+| Field | What it does | Default | When to change it |
+|---|---|---|---|
+| `Models — Anthropic (Claude)` or `Models — OpenAI` | Only the table of the provider you chose. Rows `Translate (incoming)`, `Direct`, `RP`, `Grammar`. Columns `Mode`, `Model`, `Max reply length (tokens)` (the longest answer allowed) and `Temperature` (0 = careful, 1 = more creative; empty = model default). For `claude-*-5` models (for example `claude-sonnet-5-5` and `claude-haiku-5-5`) the `Temperature` box is grey and says `ignored`: those models only accept their own default, so the app does not send it. The hint under the table says: `Claude 5 models only accept their default temperature, so the app doesn't send it. To change how replies sound, edit rp.md or persona.md (Open prompts folder / Open characters folder).` To make replies more playful or more careful, change the prompt or your character instead (see section 9). The other provider's table is kept as it is. | See section 12 | Change a model if you want a cheaper or stronger one. Use only real model names from your provider's model list. Models get retired, so check the list now and then. |
+| `Reset models` | Puts the four model rows of the shown provider back to the defaults (click `Save settings` after). | | If you broke a model name. |
+| `Save chat text in the log (for bug reports)` | Writes your chat messages to `app.log`. The hint says `Your chat messages will be written to app.log. Turn it off when you are done.` | off | Only when you look for a problem. Turn it off again. |
+| `Open logs folder` | Opens the folder with `app.log`. | | When you send a bug report. |
 
 **Change a hotkey.** Click the hotkey field. Press the new combination (for example
 `Ctrl+Shift+T`). The field shows it. Use at least one of Ctrl, Alt, Shift. Click `Save settings`.
@@ -403,12 +485,11 @@ A hotkey that does not work is **red**, with the reason under it:
 | `Needs at least one modifier (Ctrl, Alt, Shift)` | A single key like `T` would break your typing. Add Ctrl or Alt. |
 | `Not a valid key combination` | The app could not read the text. Click `Reset`. |
 
-After saving you may also see `Settings saved — some hotkeys could not be registered`. The other
+After saving you may also see `Saved — some hotkeys could not be registered`. The other
 hotkeys still work.
 
-`Reset Anthropic models` and `Reset OpenAI models` put the four model rows of that provider back to
-the defaults (click `Save settings` after). Wrong values are repaired when you save (for example an
-empty model name or `Max tokens` of 999999).
+Wrong values are repaired when you save (for example an empty model name or a
+`Max reply length (tokens)` of 999999).
 
 Some models do not accept `Temperature` (or, for OpenAI, the reasoning setting the app sends; or,
 for Claude 5 models, the thinking and effort settings the app sends). The app notices this, tries
@@ -417,8 +498,8 @@ nothing; the request just works.
 
 ## 9. Character, glossary and prompts
 
-All your files are in `%APPDATA%\RoleplayRelay\` (open the sub-folders with `Open prompts folder`,
-`Open characters folder`, `Open logs folder` in `Settings`):
+All your files are in `%APPDATA%\RoleplayRelay\` (open the sub-folders with `Open characters folder` and
+`Open prompts folder` in `Settings`, and `Open logs folder` in `Advanced`):
 
 ```
 %APPDATA%\RoleplayRelay\
@@ -462,8 +543,8 @@ starts.
 
 ## 10. Error and block messages
 
-These appear in the overlay (red text) when `Ctrl+Alt+T` or `Ctrl+Alt+E` cannot finish, and
-in red under the text box in the compose window.
+These appear in the overlay (red text) when `Translate copied line` or `Convert copied text` cannot finish, and
+in red under the text box in the reply window. The ones about keys and `Settings` appear in the `Settings` window.
 
 **Problems with the text you copied** (nothing is sent to the internet):
 
@@ -472,8 +553,8 @@ in red under the text box in the compose window.
 | `Clipboard is empty` | There is no text in the clipboard (it may hold a picture). | Copy a chat line first. |
 | `Text too long` | The text is longer than 1500 characters. | Copy a shorter part. |
 | `Clipboard looks like a key/password — not sent` | The text looks like an API key or password (one long word of plain English letters, digits and signs like `-` `_`, or it contains `sk-ant-`, `sk-proj-`, `sk-svcacct-` or `sk-` and 20 more letters or digits). The app refuses to send it. Chinese and other non-English lines are not mistaken for keys. | Copy something else. Clear the key from your clipboard (see section 3). |
-| `Text looks like a key/password — not sent` | Same, but for text typed in the compose window. | Remove the key or password from your message. |
-| `Type a message first` | The compose text box is empty. | Type something. |
+| `Text looks like a key/password — not sent` | Same, but for text typed in the reply window. | Remove the key or password from your message. |
+| `Type a message first` | The reply window text box is empty. | Type something. |
 | `Slow down` | More than 30 requests in one minute. | Wait a little. |
 
 **Problems with the AI service.** `Anthropic` or `OpenAI` in the messages is the provider you
@@ -486,8 +567,8 @@ chose in `AI provider`.
 | `No credits left on your Anthropic account` / `No credits left on your OpenAI account` | The account has no money left (or the monthly spend limit is reached). The app does not try again. | Add credit in the billing section of the Console or the Platform, or switch `AI provider`. |
 | `Too many requests, wait a moment` | You hit the service limit. | Wait a few seconds and try again. |
 | `Service overloaded, try again` | The service is busy or has an error. | Try again in a minute. |
-| `Reply was cut off — nothing copied` | The answer hit the `Max tokens` limit before it was finished. **Nothing was copied.** | Write a shorter message, or raise `Max tokens` for that mode in `Settings`. |
-| `(cut off)` at the end of a translation | For `Ctrl+Alt+T` the half answer is shown, marked this way. | Read it with care. Raise `Max tokens` for `Incoming` if it happens often. |
+| `Reply was cut off — nothing copied` | The answer hit the `Max reply length (tokens)` limit before it was finished. **Nothing was copied.** | Write a shorter message, or raise `Max reply length (tokens)` for that mode in `Settings` → `Advanced`. |
+| `(cut off)` at the end of a translation | For `Ctrl+Alt+T` the half answer is shown, marked this way. | Read it with care. Raise `Max reply length (tokens)` for `Translate (incoming)` if it happens often. |
 | `No response from server` | No answer in 20 seconds, or no internet. | Check your internet and try again. |
 | `Unexpected reply from server` | The answer was empty or in a wrong format. | Try again. If it repeats, send `logs\app.log` (section 11). |
 | `Unexpected reply — nothing copied` | In `Direct`, `RP` or `Grammar`, the answer did not have the English text in the required format (or had only emoji). The raw answer is shown dimmed under the message. **Nothing was copied.** | Press `Enter` again. If it repeats, you may have changed a prompt file by mistake (section 9). Delete it to get the default back. |
@@ -502,13 +583,19 @@ chose in `AI provider`.
 | `Nothing to copy` | You clicked `Copy anyway` but the blocked text is gone (for example you pressed `Esc` first). | Send your message again. |
 | `Could not access Windows Credential Manager` | Windows did not give the key to the app. | Restart the app. If it continues, restart Windows. |
 | `Hotkey not available: Ctrl+Alt+T` (Windows notification; your key name) | Another app uses this key combination, or two hotkeys are the same. | Close the other app or change the key in `Settings` (section 8). |
-| `Settings saved — some hotkeys could not be registered` | You saved, but at least one hotkey failed. The field is red. | Read the red text under it (section 8). |
+| `Saved — some hotkeys could not be registered` | You saved, but at least one hotkey failed. The field is red. | Read the red text under it (section 8). |
+| `Key works` (shown as `✓ Key works` next to `Test key`) | Good news: the saved key was accepted. | Nothing. |
+| `Key saved` / `Key removed` | The key was stored in, or deleted from, Windows Credential Manager. | Nothing. |
+| `No Anthropic API key. Add it in AI service below.` (banner; `OpenAI` for the other service) | No key is saved for the provider shown in `AI provider`. | Paste the key and click `Save key` (section 3). |
+| `Translate copied line hotkey is taken by another app. Pick another combination below.` (banner; the first words are the label of the hotkey) | Another app owns these keys. | Choose other keys in `Hotkeys` (section 8). |
+| `Width must be a whole number from 240 to 900.` / `Font size must be a whole number from 12 to 32.` / `Auto-hide must be a whole number from 2 to 120.` | The number in `Overlay` is outside its range. | Type a number in the range. `Save settings` stays grey until then. |
+| `Save changes?` | You closed `Settings` with unsaved changes. | `Save`, `Discard` or `Cancel` (go back). |
 | `Something went wrong` | A `Settings` action failed without a reason. | Try again. If it repeats, send `logs\app.log`. |
 
 **Blocked replies** (when you write your own text). The answer failed the safety check, so
-nothing is copied. In compose you see the text, the reason, and `Copy anyway`. In quick mode
+nothing is copied. In the reply window you see the text, the reason, and `Copy anyway`. With `Convert copied text`
 the overlay shows the reason followed by
-`— open compose (Ctrl+Alt+R) to write it yourself`.
+`— use Open reply window (Ctrl+Alt+R) to write it yourself` (it shows your own hotkey).
 
 | Message | What it means | What to do, and is `Copy anyway` OK? |
 |---|---|---|
@@ -531,12 +618,14 @@ a refusal as a separate part of its answer; the app handles it the same way and 
 
 ## 11. Troubleshooting
 
-**Compose does not give the game back focus.** After you send a message, the app brings back the
+**The reply window does not give the game back focus.** After you send a message, the app brings back the
 window that was in front when you pressed `Ctrl+Alt+R`. If the game does not react to the
 keyboard, click once in the game window. Use borderless (windowed fullscreen) mode (section 5).
 If it keeps happening, send `logs\app.log` and say which window mode you use.
 
-**The hotkey does nothing.** Open `Settings` and look for a red hotkey field. Another app may use
+**Not sure the key works?** Press `Test key` in `Settings` (section 3).
+
+**The hotkey does nothing.** Open `Settings` and look at the banner and for a red hotkey field. Another app may use
 the same keys. Choose another combination (section 8). Also check that the app is running (tray
 icon).
 
@@ -559,9 +648,9 @@ uses the font `Microsoft YaHei`.
 Try pasting into Notepad to see what you copied.
 
 **Logs.** The log file is `%APPDATA%\RoleplayRelay\logs\app.log` (button `Open logs folder` in
-`Settings`). When it reaches 1 MB it becomes `app.1.log`, and so on; the app keeps 5 files. It has
+`Settings` → `Advanced`). When it reaches 1 MB it becomes `app.1.log`, and so on; the app keeps 5 files. It has
 errors, timings and token counts. It does
-**not** have your API key or your chat text (unless you turn on `Log chat text (debugLogChat)`).
+**not** have your API key or your chat text (unless you turn on `Save chat text in the log (for bug reports)` in `Advanced`).
 When you ask for help, send the last lines of this file and the message you saw.
 
 ## 12. Costs
@@ -573,9 +662,9 @@ Prices change. Check the pricing page of your provider for the current numbers.
 
 **Which model each mode uses by default**
 
-| Mode | `Anthropic (Claude)` | `OpenAI (beta)` | `Max tokens` | `Temperature` |
+| Mode | `Anthropic (Claude)` | `OpenAI (beta)` | `Max reply length (tokens)` | `Temperature` |
 |---|---|---|---|---|
-| `Incoming` (`Ctrl+Alt+T`) | `claude-haiku-5-5` | `gpt-6-luna` | 800 | 0.2 |
+| `Translate (incoming)` (`Translate copied line`) | `claude-haiku-5-5` | `gpt-6-luna` | 800 | 0.2 |
 | `Direct` | `claude-sonnet-5-5` | `gpt-6.1-terra` | 800 | 0.3 |
 | `RP` | `claude-sonnet-5-5` | `gpt-6.1-terra` | 800 | 0.7 |
 | `Grammar` | `claude-haiku-5-5` | `gpt-6-luna` | 400 | 0 |
@@ -587,7 +676,7 @@ Prices change. Check the pricing page of your provider for the current numbers.
 | `claude-haiku-5-5` | $0.10 | $0.50 |
 | `claude-sonnet-5-5` | $2.00 | $10.00 |
 
-- `Incoming` and `Grammar` (Haiku): about **$0.0002** per message — five hundred messages cost about 10 cents.
+- `Translate (incoming)` and `Grammar` (Haiku): about **$0.0002** per message — five hundred messages cost about 10 cents.
 - `Direct` and `RP` (Sonnet): about **$0.005** per message — about half a cent; two hundred messages cost
   about one dollar.
 
@@ -602,8 +691,8 @@ For the default Claude 5 models the app asks for short, low-effort answers and k
 extra "thinking" off or minimal, so answers stay short and cheap. If you type a different model
 name, that model may think first and the answer can cost more.
 
-These are estimates. To spend less, use the small model in `Direct` or `RP` (the `Models`
-section for your provider in `Settings`), at some loss of quality.
+These are estimates. To spend less, use the small model in `Direct` or `RP` (the `Models` table
+for your provider in `Settings` → `Advanced`), at some loss of quality.
 
 **See the real numbers.**
 

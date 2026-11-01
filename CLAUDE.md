@@ -194,6 +194,7 @@ Notes:
 ## User flows (MVP)
 
 ### 1. Incoming: translate EN → user language (`Ctrl+Alt+T`)
+UI label: `Translate copied line`.
 1. User copies a chat line in game (WoW: Leatrix Plus chat copy) with Ctrl+C.
 2. Hotkey → read clipboard text. Empty / non-text → overlay shows "Clipboard is empty".
 3. Call model with `prompts/incoming.md`, mode `incoming`.
@@ -204,6 +205,7 @@ Copied text may contain timestamps, channel tags (`[1. General]`), speaker prefi
 (`Thrall says:`, `[Name]:`), and several lines. Keep speaker names, translate the content.
 
 ### 2. Outgoing: compose (`Ctrl+Alt+R`)
+UI label: `Open reply window`. The compose window is called "reply window" in all UI text and docs.
 1. Hotkey → show compose window centered, always-on-top, focused, textarea focused.
 2. Mode switcher: **Direct** / **RP** / **Grammar**. Keys `Ctrl+1/2/3` or `Tab` cycles.
    Remember last used mode.
@@ -215,7 +217,7 @@ Copied text may contain timestamps, channel tags (`[1. General]`), speaker prefi
 
 The input may be in any language (usually the user language); the result is always English.
 
-### 3. Quick clipboard mode (`Ctrl+Alt+E`) — fallback flow
+### 3. Convert copied text (`Ctrl+Alt+E`) — quick mode, fallback flow
 Read clipboard → run **last used outgoing mode** → write result (part 1) to clipboard → overlay.
 For when the user typed in the game's chat box and copied it.
 
@@ -230,6 +232,46 @@ Show/hide overlay. When shown via toggle, display history (last 10 entries, newe
 All hotkeys are configurable. If registration fails (taken by another app), show a tray
 notification and mark it red in Settings.
 
+### Hotkey labels in Settings
+In code and in this spec the internal term stays "compose" (and `quick`); only user-facing text
+uses the labels below. Settings → `Hotkeys` has three sub-headings; under each hotkey row sits one
+hint line (small, muted, aligned with the label, plain text, English for every user language):
+
+```
+Reading chat
+  Translate copied line   [Ctrl+Alt+T] [Reset]
+    Copy someone's chat line first. Shows the {language} translation in the overlay. Your clipboard stays the same.
+Writing replies
+  Open reply window       [Ctrl+Alt+R] [Reset]
+    Type in any language. The English result goes to your clipboard.
+  Convert copied text     [Ctrl+Alt+E] [Reset]
+    Copy your own text first. The English result replaces your clipboard. Uses {mode} mode, the last mode you picked in the reply window.
+  Copy next part          [Ctrl+Alt+N] [Reset]
+    For replies longer than {chat_limit} characters. Copies the next part.
+Overlay
+  Show/Hide overlay       [Ctrl+Alt+O] [Reset]
+    Shows your last 10 messages and translations.
+```
+
+| Action | Label | Sub-heading |
+|---|---|---|
+| `translate` | `Translate copied line` | `Reading chat` |
+| `compose` | `Open reply window` | `Writing replies` |
+| `quick` | `Convert copied text` | `Writing replies` |
+| `nextPart` | `Copy next part` | `Writing replies` |
+| `overlayToggle` | `Show/Hide overlay` | `Overlay` |
+
+Dynamic values:
+- `{language}` — the English name of the language selected in `Your language` (`list_languages()`
+  returns `englishName`); updates live, before `Save settings`.
+- `{mode}` — `Direct`, `RP` or `Grammar`: the stored last outgoing mode (`get_last_mode()`), refreshed
+  when the Settings window gains focus.
+- `{chat_limit}` — the active game profile's `chat_limit` from the read-only `get_game_profile()`
+  (`settings` capability only). The frontend never hardcodes it.
+
+Any user-visible message that names a hotkey shows the **currently configured** combination, and
+uses these labels (e.g. `Open reply window (Ctrl+Alt+R)`).
+
 ---
 
 ## Windows
@@ -238,13 +280,18 @@ notification and mark it red in Settings.
 |---|---|
 | `overlay` | transparent, no decorations, always on top, skip taskbar, **click-through** (`set_ignore_cursor_events(true)`), **never activates**. Default: top-right corner, 420px wide. Auto-hides N seconds (default 12) after last update unless toggled on. |
 | `compose` | no decorations, always on top, skip taskbar, focusable, ~560×220, rounded, dark. Hidden (not destroyed) between uses so it opens instantly. |
-| `settings` | normal window, opened from tray. Title `Roleplay Relay — Settings`. |
+| `settings` | normal window (min 600×480), opened from tray. Title `Roleplay Relay — Settings`. Layout and save behavior: see "Settings window" below. |
 
 **Overlay must not activate.** Showing a Tauri window on Windows can activate it and minimize/defocus
 the game. Create it with `focused(false)` (and `focusable(false)` if available in the Tauri version),
 and show it with no-activate semantics. If Tauri's `show()` still activates, set `WS_EX_NOACTIVATE`
 + `WS_EX_TOOLWINDOW` on the HWND and use `ShowWindow(hwnd, SW_SHOWNOACTIVATE)` via the `windows` crate.
 This is an acceptance criterion — test it with a fullscreen-windowed app in front.
+
+**Overlay preview.** Settings → `Preview overlay` shows the overlay for the auto-hide time with a
+sample entry (an English line and its translation in the selected user language, from the sample
+table in `languages.rs`), using the form's current, unsaved values. It goes through the same code
+path as every update: never activates, click-through, no request, not recorded in the history.
 
 Visual style: dark translucent panel (`rgba(15,15,20,0.82)`), warm accent (amber/earth tones),
 readable font ≥ 15px, configurable font size and opacity. Text in every user language
@@ -254,6 +301,50 @@ including the `Your language` dropdown (`简体中文` must not show as boxes).
 
 Tray tooltip: `Roleplay Relay`. Tray menu: "Show/Hide overlay", "Character ▸" (list of characters,
 MVP shows only `default`), "Settings", "Quit".
+
+---
+
+## Settings window
+
+Top to bottom: status banner, then cards `AI service`, `Your language`, `Hotkeys`, `Overlay`,
+`Long replies`, `Character and prompts`, `General`, a collapsed `Advanced` section, and a sticky footer.
+`settings.json` keys and values are unchanged by the layout (hidden fields keep their values).
+
+- **Status banner** (computed in the frontend): green `Ready. Copy a chat line in the game and press
+  {configured translate hotkey}.`; otherwise amber, one line per problem, most important first:
+  `No {Provider} API key. Add it in AI service below.`, then for each hotkey that failed to
+  register `{Label} hotkey is taken by another app. Pick another combination below.` (uses the
+  hotkey labels). Updates live after `Save key`, `Clear key`, a provider change and `Save settings`.
+- **`AI service`**: field `AI provider`; the key row only for the provider selected in the dropdown
+  (even before save); status chip `✓ Key saved` / `⚠ No key`; hint `Get a key at
+  console.anthropic.com.` / `Get a key at platform.openai.com.` (plain text, no link) + `Saved right
+  away (no need to press Save settings).` + the Credential Manager sentence. Buttons `Save key`
+  (primary), `Test key`, `Clear key`. `Test key` calls `test_api_key(provider)`: one minimal request
+  (system `Reply with OK.`, input `ping`, `max_tokens` 32) with the saved key and that provider's
+  `incoming` model; shows `✓ Key works` or the normal mapped error. Disabled while no key is saved
+  or a test runs. Never returns or logs the key.
+- **`Overlay`**: `Position`, `Width` (px), `Font size` (px), `Opacity` slider (stored 0.20–1.00, shown as
+  `82 %`), `Auto-hide after` (seconds), `Preview overlay`. Numbers are validated inline against the
+  backend's clamp ranges (Width 240–900, Font size 12–32, Auto-hide 2–120); `Save settings` and
+  `Preview overlay` are disabled while one is invalid. The backend ranges win over any other range.
+- **`Long replies`**: `Part marker` (`(1/3) at the end`, `… at the end`, `None`; stored `(n/m)`, `…`,
+  `none`), hint with `{chat_limit}`.
+- **`Character and prompts`**: `Open characters folder`, `Open prompts folder`, each with a one-line hint.
+- **`General`**: `Start with Windows` (applies right away; hint says so).
+- **`Advanced`** (collapsed on open; open/closed kept per session only): models table of the selected
+  provider only (`Models — Anthropic (Claude)` / `Models — OpenAI`; columns `Mode`, `Model`, `Max reply
+  length (tokens)`, `Temperature`; rows `Translate (incoming)`, `Direct`, `RP`, `Grammar`), a provider hint under the table
+  (Anthropic: `Claude 5 models only accept their default temperature, so the app doesn't send it. To change how replies sound, edit rp.md or persona.md (Open prompts folder / Open characters folder).`
+  OpenAI: `Temperature: 0 = most exact, 1 = most creative. Leave empty for the model's default.`),
+  `Reset models`, `Save chat text in the log (for bug reports)` (= `debugLogChat`) with a warning hint,
+  `Open logs folder`.
+- **Saving**: sticky footer with `Unsaved changes` (only when the form differs from the stored
+  settings), `Discard`, `Save settings` (disabled when nothing changed or a field is invalid); `Saved`
+  for 2 s after a save. Keys save on their own click. Closing the window with unsaved changes asks
+  `Save changes?` [`Save`] [`Discard`] [`Cancel`]: Rust turns the close request into the event
+  `settings://close-requested`, the form answers by calling `close_settings` (the window is hidden,
+  never destroyed).
+- **Buttons**: only `Save settings` and `Save key` are amber and filled; all others are outlined.
 
 ---
 
@@ -285,6 +376,9 @@ Adding a provider later = one new file implementing the trait + a settings entry
   if the API rejects one for a model (HTTP 400 naming the parameter), retry once without it and
   remember that per model for the session.
 - Prompts are shared by both providers and never name a provider or model.
+- **`test_api_key(provider)`** (Settings `Test key`; `settings` capability only): one minimal request with
+  that provider's saved key and `incoming` model; success on any reply (even a cut-off one), failure
+  mapped like every other error; never returns or logs the key.
 
 ### Mode config (defaults, editable in Settings)
 
@@ -388,7 +482,7 @@ user's text or clipboard text (any language)
    (WoW: `|` — chat escape sequences `|c` `|H` `|T`; malformed or fake links can get the message
    rejected or you disconnected); collapse repeated spaces.
 2. **Block** (nothing copied; compose stays open with the result + red reason + "Copy anyway" button;
-   in quick mode the overlay shows the reason and suggests compose):
+   in quick mode the overlay shows the reason and suggests `Open reply window`):
    - URL or domain-like text (`http`, `www.`, `\b[\w-]+\.(com|net|org|gg|io|ru|xyz|shop)\b`) —
      gold-seller / phishing spam is the classic way to get mass-reported and silenced;
    - the active language's leftover check (see "User language") →
@@ -404,7 +498,9 @@ user's text or clipboard text (any language)
 ### Tauri hardening
 - **Capabilities per window (least privilege):** `overlay` — event listen only, no commands;
   `compose` — `compose_submit`, `compose_cancel`, `get_compose_state`; `settings` — settings commands,
-  key commands, and the opener plugin scoped to `%APPDATA%\RoleplayRelay\**` only. No `shell` plugin,
+  key commands, `test_api_key`, the read-only `get_game_profile` and `get_last_mode`, `preview_overlay`,
+  `close_settings`, event listen (for the close request), and the opener plugin scoped to
+  `%APPDATA%\RoleplayRelay\**` only. No opener URL scope: the key sites are plain text. No `shell` plugin,
   no `fs` plugin in any capability (Rust does all file IO).
 - **CSP** in `tauri.conf.json`:
   `default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'`.
@@ -538,7 +634,7 @@ Two docs, kept current as the app is built (not written once at the end):
      before: uninstall it first (only if the migration section applies).
   3. **AI provider and API key** — which provider to pick (both work; short comparison of quality and
      cost), how to create a key in the Anthropic Console or on the OpenAI Platform, choose `AI provider`
-     and paste the key into Settings, how to check it works, how to replace/clear it, that each provider
+     and paste the key into Settings, how to check it works (the `Test key` button and its result messages), how to replace/clear it, that each provider
      needs credits on its account; reminder that the key stays in the clipboard after copying — clear it.
   4. **Your language** — pick `Your language` in Settings right after the key; which languages exist;
      what it changes (translations, back-translations) and what it doesn't (the app's own buttons and
@@ -546,13 +642,15 @@ Two docs, kept current as the app is built (not written once at the end):
   5. **Game setup** — per supported game. WoW: borderless/windowed fullscreen (exclusive fullscreen
      hides the overlay), Leatrix Plus chat copy, how to copy a chat line.
   6. **How to use it** — one short subsection per flow with the hotkey and a worked example:
-     incoming translate, compose (Direct / RP / Grammar — when to use which), quick clipboard mode,
+     `Translate copied line`, `Open reply window` (Direct / RP / Grammar — when to use which), `Convert copied text`,
      long messages and `Ctrl+Alt+N`, overlay toggle and history.
-  7. **Hotkey cheat sheet** — one table: hotkey → action → where the result goes (overlay / clipboard).
-  8. **Settings** — every Settings field: what it does, default, when to change it (`Your language`,
-     `AI provider`, hotkeys and conflicts, models per mode for each provider, overlay position / font /
-     opacity / auto-hide, split marker,
-     `debugLogChat`).
+  7. **Hotkey cheat sheet** — one table: hotkey → action → where the result goes (overlay / clipboard);
+     the action column uses the exact Settings labels, grouped like Settings.
+  8. **Settings** — follows the window's card order (banner, `AI service`, `Your language`, `Hotkeys`
+     with sub-headings and hints, `Overlay` with units and ranges, `Long replies`, `Character and
+     prompts`, `General`, `Advanced`: models per mode of the chosen provider and the chat-text log
+     switch), the sticky footer and the `Save changes?` dialog; every field: what it does, default,
+     when to change it. Labels word for word as in the window.
   9. **Character, glossary and prompts** — the `%APPDATA%\RoleplayRelay\` folder map, how to fill
      `persona.md` (with a short example), how to add glossary terms, how to tweak a prompt (keep
      `{{user_language}}` in it), that edits apply on the next request, how to restore a default
@@ -560,9 +658,10 @@ Two docs, kept current as the app is built (not written once at the end):
   10. **Error and block messages** — table: exact message → what it means → what to do. Cover
       every API error, every Input guard message, every Output guard block reason (incl. each
       language's "still has … text" message) and when `Copy anyway` is (and is not) a good idea.
-  11. **Troubleshooting** — hotkey does nothing, overlay not visible over the game, compose
+  11. **Troubleshooting** — hotkey does nothing, overlay not visible over the game, the reply window
       doesn't return focus, translations come in the wrong language, where `logs\app.log` is and what
-      to send when asking for help (and to remove chat text from it if `debugLogChat` was on).
+      to send when asking for help (and to remove chat text from it if `Save chat text in the log (for bug
+      reports)` was on); "Not sure the key works? Press `Test key`."
   12. **Costs** — for each provider: which model each mode uses, rough cost per message, where to see
       usage (Anthropic Console / OpenAI Platform), how to set a spend limit there.
 
@@ -664,6 +763,39 @@ Security / ban-safety:
 - [ ] Holding `Ctrl+Alt+T` for 3 s sends exactly one request.
 - [ ] Clipboard holding `sk-ant-…` → "looks like a key", no request made, nothing logged.
 - [ ] Release build: devtools don't open; overlay window cannot invoke any command.
+
+Settings UX:
+- [ ] Settings shows the three hotkey sub-headings and the five rows with the new labels and hint lines.
+- [ ] Changing `Your language` to `简体中文` → the first hint says `Chinese translation` immediately,
+      before `Save settings`.
+- [ ] Pick RP in the reply window, then open Settings → the `Convert copied text` hint says `RP mode`.
+      Switch to Grammar in the reply window, focus Settings again → `Grammar mode`.
+- [ ] `Copy next part` hint shows the profile limit; with a test profile limit of 200 it shows `200`.
+      `255` still appears only in `game.rs` (and tests).
+- [ ] Old labels `Translate clipboard`, `Compose reply`, `Quick clipboard mode` appear nowhere in
+      `src/`, `src-tauri/src/`, `docs/`, `README.md`.
+- [ ] Hint lines wrap cleanly at the minimum Settings window width; no horizontal scroll.
+- [ ] USER_GUIDE sections 3 and 6–8 match the Settings window word for word.
+- [ ] Fresh install, no key: banner says `No Anthropic API key…`; after `Save key` + `Test key` →
+      `✓ Key works` and the banner turns green `Ready…` with the configured hotkey.
+- [ ] Invalid key → `Test key` shows `Invalid Anthropic API key` next to the button. (The banner only
+      checks that a key exists, so it does not change.)
+- [ ] Selecting `OpenAI (beta)` (before save) shows only the OpenAI key row and, in Advanced, only the
+      OpenAI table; switching back shows Anthropic again. Both keys and both model tables survive.
+- [ ] Advanced is collapsed on open; `Save chat text in the log (for bug reports)` maps to `debugLogChat`.
+- [ ] Opacity slider shows `82 %` for a stored `0.82`; saving writes `0.82`.
+- [ ] Out-of-range number → inline error, `Save settings` disabled.
+- [ ] `Preview overlay` shows a sample in the selected language with the unsaved form values; the
+      game window (or any focused fullscreen-windowed app) keeps focus; overlay is click-through.
+- [ ] `Part marker` shows `(1/3) at the end` for stored `(n/m)`; hint shows the profile limit.
+- [ ] Change any field → `Unsaved changes` appears; `Discard` restores stored values; closing the
+      window asks `Save changes?`.
+- [ ] Only `Save settings` and `Save key` are amber filled buttons.
+- [ ] A hotkey taken by another app → banner line with the new hotkey label.
+- [ ] `settings.json` from v0.1.0 loads unchanged; nothing is reset; all hotkeys keep their combos.
+- [ ] Minimum window width: no horizontal scroll; footer does not cover the last card.
+- [ ] `test_api_key` is not callable from `overlay` or `compose`; the key never reaches the WebView
+      or the log.
 
 Name, game profile, publishing:
 - [ ] Product name, tray tooltip, window titles, installer and `%APPDATA%` folder all say

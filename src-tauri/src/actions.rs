@@ -1,5 +1,6 @@
 //! What the hotkeys and the compose window do: incoming translation (milestone 2) and the
-//! outgoing flows - compose and quick clipboard mode (milestone 3).
+//! outgoing flows - compose and quick clipboard mode (milestone 3). In the UI the compose
+//! window is the "reply window" and quick mode is `Convert copied text`.
 
 use std::io;
 use std::sync::Mutex;
@@ -529,7 +530,7 @@ pub fn quick_clipboard(app: &AppHandle) {
                     .and_then(|d| settings::load(&app, &d))
                     .map(|s| s.hotkeys.compose)
                     .unwrap_or_default();
-                let message = format!("{block} — open compose ({hotkey}) to write it yourself");
+                let message = format!("{block} — use Open reply window ({hotkey}) to write it yourself");
                 overlay::push(&app, Kind::Error, Some(&draft.en), &message);
             }
             Err(f) => overlay::push(&app, Kind::Error, f.raw.as_deref(), &f.message),
@@ -537,9 +538,78 @@ pub fn quick_clipboard(app: &AppHandle) {
     });
 }
 
+// ---------------------------------------------------------------------------------------------
+// Settings → Test key
+// ---------------------------------------------------------------------------------------------
+
+/// Smallest reply the providers accept (OpenAI's lower bound is 16).
+const PING_MAX_TOKENS: u32 = 32;
+
+/// One minimal request. Any successful reply means the key works, even a cut-off one.
+async fn ping(client: &dyn LlmProvider, key: &secrecy::SecretString, model: &str) -> Result<(), ApiError> {
+    let request = LlmRequest {
+        model,
+        max_tokens: PING_MAX_TOKENS,
+        temperature: None,
+        system: "Reply with OK.",
+        user: "ping",
+    };
+    client.complete(key, &request).await.map(|_| ())
+}
+
+/// Settings `Test key`: checks the key saved for `provider` with that provider's `incoming`
+/// model. Returns the normal mapped error text; never the key.
+pub async fn test_api_key(app: &AppHandle, provider: Provider) -> Result<(), String> {
+    let data = paths::data_dir(app)?;
+    let cfg = settings::load(app, &data)?;
+    let model = match provider {
+        Provider::Anthropic => cfg.models.anthropic.incoming.model.clone(),
+        Provider::OpenAi => cfg.models.openai.incoming.model.clone(),
+    };
+    let key = match secrets::get_api_key(provider) {
+        Ok(Some(k)) => k,
+        Ok(None) => return Err(ApiError::NoKey(provider).to_string()),
+        Err(e) => return Err(e.to_string()),
+    };
+    let state = app.state::<AppState>();
+    tracing::info!(provider = provider.name(), model = %model, "key test");
+    ping(state.client(provider), &key, &model)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm::{BoxFuture, LlmResponse};
+
+    struct Fake(Result<(), ApiError>);
+
+    impl LlmProvider for Fake {
+        fn complete<'a>(
+            &'a self,
+            _key: &'a secrecy::SecretString,
+            req: &'a LlmRequest<'a>,
+        ) -> BoxFuture<'a, Result<LlmResponse, ApiError>> {
+            assert_eq!(req.max_tokens, PING_MAX_TOKENS);
+            assert_eq!((req.system, req.user), ("Reply with OK.", "ping"));
+            let out = self.0.clone().map(|()| LlmResponse {
+                reply: LlmReply::Text("OK".into()),
+                input_tokens: 1,
+                output_tokens: 1,
+                truncated: true,
+            });
+            Box::pin(async move { out })
+        }
+    }
+
+    #[tokio::test]
+    async fn ping_succeeds_on_any_reply_and_maps_errors() {
+        let key = secrecy::SecretString::from("k".to_owned());
+        assert_eq!(ping(&Fake(Ok(())), &key, "m").await, Ok(()));
+        let err = ping(&Fake(Err(ApiError::Unauthorized(Provider::Anthropic))), &key, "m").await;
+        assert_eq!(err.unwrap_err().to_string(), "Invalid Anthropic API key");
+    }
 
     fn addr(p: &dyn LlmProvider) -> *const () {
         p as *const dyn LlmProvider as *const ()

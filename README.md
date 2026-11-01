@@ -25,7 +25,8 @@ messages one reply may be split into (4), and the characters stripped from outgo
 Everything else in the app is game-agnostic.
 
 Status: **Milestone 5 (Polish)** — all MVP flows, live-configurable hotkeys, autostart, per-mode
-model settings, size-rotating logs, NSIS installer.
+model settings, size-rotating logs, NSIS installer. The Settings window has a status banner, a
+`Test key` button, an overlay preview and a sticky Save bar (see `docs/USER_GUIDE.md` section 8).
 
 ## Prerequisites (Windows 10/11 x64)
 
