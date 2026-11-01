@@ -78,25 +78,15 @@ incoming translations, back-translations. Code, comments, commits: English.
 | GitHub repo | `roleplay-relay` |
 | Cargo package / npm package | `roleplay-relay` |
 | Tauri `productName` | `Roleplay Relay` |
-| Tauri `identifier` | `io.github.<owner>.roleplay-relay` |
+| Tauri `identifier` | `io.github.ai-powered-pm.roleplay-relay` |
 | Data folder | `%APPDATA%\RoleplayRelay\` |
 | `keyring` service / accounts | `RoleplayRelay` / `anthropic-api-key`, `openai-api-key` |
 
-- The Tauri `identifier` keys app data, the autostart entry and the uninstaller. Set it once before the
-  first public release and **never change it afterwards**.
+- The Tauri `identifier` keys app data, the autostart entry and the uninstaller. It shipped in v0.1.0.
+  **Never change it**: a new identifier makes Windows treat the app as a different program (new
+  autostart entry, new uninstaller).
 - All of these come from one place in code (constants in `main.rs` / `secrets.rs` + `tauri.conf.json`);
   no other file spells the data folder or keyring service.
-
-### Migration from the old name ("WoW Chat Helper")
-Only needed if a build under the old name was ever installed outside `tauri dev`. If not, skip it and
-do not write migration code.
-- On start: if `%APPDATA%\WowChatHelper\` exists and `%APPDATA%\RoleplayRelay\` does not, **copy** it
-  over (never delete the old folder), log one line.
-- If the keyring has no key under `RoleplayRelay` but has one under the old service name (take it from
-  the previous `secrets.rs`): copy it to the new entry, then delete the old entry. Never log the value.
-- The old install has a different identifier, so Windows treats it as another app. `docs/USER_GUIDE.md`
-  tells the user to uninstall `WoW Chat Helper` first (that also removes its autostart entry).
-- The string `WowChatHelper` may appear only in this migration code.
 
 ---
 
@@ -563,7 +553,7 @@ src-tauri/src/
   parse.rs         # tagged response parser
   split.rs         # chat-limit splitter
   context.rs       # per-character ring buffer (in memory, MVP)
-  secrets.rs       # keyring wrapper (+ old-name key migration, only if needed)
+  secrets.rs       # keyring wrapper
   settings.rs      # typed settings + defaults
   overlay.rs       # no-activate show/hide helpers
 src/
@@ -610,12 +600,13 @@ different limit, to prove nothing hardcodes 255.
   controls (chat limit, max parts, stripped characters).
 - **Trademarks:** Hard rule 7. Icon and screenshots use only the app's own UI and original art.
 - **License:** MIT, `LICENSE` at repo root.
-- **Secrets:** run `gitleaks` over the **full history** before the first public push, and in CI on every
-  push. If a key was ever committed, revoke it in the Anthropic Console or on the OpenAI Platform
+- **Secrets:** run `gitleaks` over the **full history** in CI on every
+  push, and locally after any history rewrite. If a key was ever committed, revoke it in the Anthropic Console or on the OpenAI Platform
   (rewriting history is not enough).
 - **`.gitignore`:** `target/`, `node_modules/`, `dist/`, `*.log`, `.env*`, any local `settings.json`.
 - **Generic content:** bundled `persona.md` / `glossary.md` are a neutral example character. No real
   player, character, guild or server names anywhere in the repo — code, tests, docs, screenshots.
+- **Pseudonym:** the project is published as `AI-Powered-PM`. No personal names, personal account names or personal e-mail addresses anywhere in the repo: files, commit messages, commit author/committer (use the GitHub noreply address). Check `git config user.name` / `user.email` before committing.
 - **Releases:** NSIS installer on GitHub Releases with its SHA-256 in the release notes. The installer is
   unsigned, so USER_GUIDE section 2 explains the SmartScreen warning (`More info` → `Run anyway`).
 - **CI** (`windows-latest`): `cargo test` (incl. forbidden-API grep), `cargo clippy -D warnings`,
@@ -639,8 +630,7 @@ Two docs, kept current as the app is built (not written once at the end):
      game, you paste and press Enter yourself; why that matters (ban safety). Supported games.
      The Blizzard disclaimer.
   2. **Install and first run** — download from GitHub Releases, the SmartScreen warning, run the
-     installer, tray icon, where to find it, autostart toggle. If `WoW Chat Helper` was installed
-     before: uninstall it first (only if the migration section applies).
+     installer, tray icon, where to find it, autostart toggle.
   3. **AI provider and API key** — which provider to pick (both work; short comparison of quality and
      cost), how to create a key in the Anthropic Console or on the OpenAI Platform, choose `AI provider`
      and paste the key into Settings, how to check it works (the `Test key` button and its result messages), how to replace/clear it, that each provider
@@ -680,7 +670,7 @@ diverged).
 
 ---
 
-## Milestones (build in this order, each runnable)
+## Milestones (MVP build order — all done in v0.1.x)
 
 1. **Skeleton:** Tauri app with the names and identifiers from "Name and identifiers", tray icon + menu,
    single instance, settings window with `AI provider` dropdown and one key field per provider (stored
@@ -698,19 +688,6 @@ diverged).
    default-prompt hash migration, NSIS installer, first GitHub Release. Final pass on
    `docs/USER_GUIDE.md`: every section complete, error table checked against the actual strings in
    code, hotkey table matches defaults. Run the "Publishing" checklist.
-
-If milestones 2–3 are already built when this spec version arrives, do "User language" as its own
-change (setting, `languages.rs`, prompt placeholders, leftover check, migration, guide section 4)
-before continuing with milestone 4.
-
-If milestone 2 or later is already built with a single Anthropic client (`claude.rs`), add OpenAI as
-its own change: move the client into `llm/anthropic.rs` behind the `LlmProvider` trait with no behavior
-change (commit), then add `llm/openai.rs`, the `provider` setting, per-provider keys and models,
-the new error messages, guide sections 3, 8, 10 and 12 (commit).
-
-If any milestone is already built under the old name, do the rename as its own change first:
-"Name and identifiers" (+ its migration only if an old build was installed), `game.rs` with the values
-moved out of `split.rs` / the Output guard, README/USER_GUIDE wording. Commit it before anything else.
 
 Each milestone also updates `docs/USER_GUIDE.md` for what it added (see "Documentation").
 
@@ -808,14 +785,12 @@ Settings UX:
 
 Name, game profile, publishing:
 - [ ] Product name, tray tooltip, window titles, installer and `%APPDATA%` folder all say
-      `Roleplay Relay` / `RoleplayRelay`; `WowChatHelper` appears only in migration code (or nowhere).
+      `Roleplay Relay` / `RoleplayRelay`; the old name appears nowhere.
 - [ ] No `WoW`, `Warcraft` or `Blizzard` in `productName`, `identifier`, icon, window titles,
       installer file name or repo name.
 - [ ] `255`, `4` and `|` appear only in `game.rs` (and tests); `split` passes a test with a non-255 limit.
 - [ ] A reply needing 5+ parts → reply window shows `Too long: 5 chat messages (max 4). …` with the configured `Copy next part` hotkey; after `Copy anyway`, `Copy next part` copies every part.
 - [ ] Bundled prompts contain no literal `255`; with a test profile limit of 200 the filled `rp.md` says `200`.
-- [ ] If migration applies: an old install's key and `%APPDATA%\WowChatHelper\` files are picked up
-      on first start under the new name.
 - [ ] `gitleaks` over the full history: no findings. CI is green on `windows-latest`.
 - [ ] README and USER_GUIDE section 1 contain the Blizzard disclaimer and the "use at your own risk" line.
 - [ ] No real player, character, guild or server names in the repo.
