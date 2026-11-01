@@ -1,13 +1,7 @@
 # Glossary — keep these names and terms exactly as written
+# One term per line: Term — how it should appear. Replace the examples with your own.
 
-Earth Mother — Мать-Земля
-An'she — the sun
-Mu'sha — the moon
-Shu'halo — what the tauren call themselves
-Thunder Bluff — Громовой Утёс
-Mulgore — Мулгор
-Cairne Bloodhoof — Кэрн Кровавое Копыто
-Orgrimmar — Оргриммар
-The Barrens — Степи
-kodo — кодо
-totem — тотем
+Greenhollow — the home village of the example character
+Silverwater — the river near the village
+Safe roads — the character's farewell
+Well met — the character's greeting
