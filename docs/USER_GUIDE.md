@@ -54,17 +54,11 @@ see an error under the box, restart the app and try again.
 The app can use one of two AI services. You pick one in `Settings`. You need your own API key
 for the one you pick.
 
-| | `Anthropic (Claude)` | `OpenAI (beta)` |
+| | `Anthropic (Claude)` | `OpenAI` |
 |---|---|---|
 | Models used by default | Claude Haiku and Sonnet | `gpt-6-luna` and `gpt-6.1-terra` |
 | Quality | Both give good translations and natural English. Try each on a few lines of your own chat and keep the one whose English you like better. | Same. |
 | Cost | Cheap for translating (`Incoming`, `Grammar`), a little more for `Direct` and `RP`. See section 12. | Same idea: a small model for `Incoming` and `Grammar`, a bigger one for `Direct` and `RP`. See section 12. |
-
-**OpenAI support is beta.** It was tested only against a mock server, not against the real
-OpenAI service. The author does not use it day to day. Anthropic is the main, tested path.
-If a request to OpenAI fails or gives odd results, please open a GitHub issue with the
-`provider error` template and paste the matching lines from `logs\app.log` (section 11).
-Remove chat text from the lines first if `Save chat text in the log (for bug reports)` was on.
 
 Both work the same way in the app. You can save both keys and switch any time.
 Each service needs **credits on its own account**. Without credits you see
@@ -86,7 +80,7 @@ Each service needs **credits on its own account**. Without credits you see
 
 1. Tray icon → `Settings`. At the top you see a banner. While the app is not ready, it is yellow
    and says what is missing, for example `No Anthropic API key. Add it in AI service below.`
-2. In the card `AI service`, pick `Anthropic (Claude)` or `OpenAI (beta)` in the `AI provider` list.
+2. In the card `AI service`, pick `Anthropic (Claude)` or `OpenAI` in the `AI provider` list.
    The card shows the key row of the provider you picked. Under the key row you see a hint like
    `Get a key at console.anthropic.com.` (for OpenAI: `Get a key at platform.openai.com.`).
 3. Next to `API key` a small label tells you the state: `⚠ No key` or `✓ Key saved`.
@@ -406,7 +400,7 @@ own hotkey). Yellow: one line for each problem, for example
 
 | Field | What it does | Default | When to change it |
 |---|---|---|---|
-| `AI provider` | Which service gets your requests: `Anthropic (Claude)` or `OpenAI (beta)`. Only the key row of the chosen provider is shown. See section 3. | `Anthropic (Claude)` | When you want to try the other service, or one account has no credits. |
+| `AI provider` | Which service gets your requests: `Anthropic (Claude)` or `OpenAI`. Only the key row of the chosen provider is shown. See section 3. | `Anthropic (Claude)` | When you want to try the other service, or one account has no credits. |
 | `API key` | A label (`✓ Key saved` or `⚠ No key`) and a write-only field `Paste your API key`. Buttons `Save key`, `Test key`, `Clear key`. `Test key` sends one tiny request with the saved key and shows `✓ Key works` or the error. | empty | Once per provider you use. |
 
 **Card `Your language`**
@@ -662,7 +656,7 @@ Prices change. Check the pricing page of your provider for the current numbers.
 
 **Which model each mode uses by default**
 
-| Mode | `Anthropic (Claude)` | `OpenAI (beta)` | `Max reply length (tokens)` | `Temperature` |
+| Mode | `Anthropic (Claude)` | `OpenAI` | `Max reply length (tokens)` | `Temperature` |
 |---|---|---|---|---|
 | `Translate (incoming)` (`Translate copied line`) | `claude-haiku-5-5` | `gpt-6-luna` | 800 | 0.2 |
 | `Direct` | `claude-sonnet-5-5` | `gpt-6.1-terra` | 800 | 0.3 |

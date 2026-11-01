@@ -79,7 +79,7 @@ const PROVIDERS: {
   },
   {
     id: "openai",
-    label: "OpenAI (beta)",
+    label: "OpenAI",
     name: "OpenAI",
     keyHint: "Get a key at platform.openai.com.",
     modelsTitle: "Models — OpenAI",

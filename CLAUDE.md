@@ -351,7 +351,7 @@ Top to bottom: status banner, then cards `AI service`, `Your language`, `Hotkeys
 ## AI providers
 
 Setting `provider`: `anthropic` (default) or `openai`. Settings → dropdown `AI provider` with labels
-`Anthropic (Claude)` and `OpenAI (beta)` (tested against a mock server only). A change applies on the next request, no restart. Each provider has
+`Anthropic (Claude)` and `OpenAI`. A change applies on the next request, no restart. Each provider has
 its own key and its own model per mode; switching provider never loses the other one's key or models.
 
 Code lives in `src-tauri/src/llm/`: `mod.rs` (trait, shared types, retry, error mapping),
@@ -780,7 +780,7 @@ Settings UX:
       `✓ Key works` and the banner turns green `Ready…` with the configured hotkey.
 - [ ] Invalid key → `Test key` shows `Invalid Anthropic API key` next to the button. (The banner only
       checks that a key exists, so it does not change.)
-- [ ] Selecting `OpenAI (beta)` (before save) shows only the OpenAI key row and, in Advanced, only the
+- [ ] Selecting `OpenAI` (before save) shows only the OpenAI key row and, in Advanced, only the
       OpenAI table; switching back shows Anthropic again. Both keys and both model tables survive.
 - [ ] Advanced is collapsed on open; `Save chat text in the log (for bug reports)` maps to `debugLogChat`.
 - [ ] Opacity slider shows `82 %` for a stored `0.82`; saving writes `0.82`.

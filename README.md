@@ -4,10 +4,6 @@
 online game's text chat: it translates incoming lines and turns your own words into natural
 English, ready to paste. Bring your own Anthropic or OpenAI API key — usage is billed to your account.
 
-> **OpenAI support is beta.** It is tested against a mock server only and is not used
-> day to day by the author; Anthropic is the main path. If an OpenAI request fails, please open a
-> GitHub issue (template: *Provider error*) with the relevant lines from `%APPDATA%\RoleplayRelay\logs\app.log`.
-
 **It never touches the game.** It only reads and writes the clipboard, listens to global hotkeys
 and shows its own windows. It never simulates input, installs input hooks, reads game memory or
 files, or looks for the game window. You paste and press Enter yourself.

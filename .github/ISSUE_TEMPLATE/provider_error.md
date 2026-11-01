@@ -1,11 +1,11 @@
 ---
 name: Provider error
-about: A request to Anthropic or OpenAI failed or returned something wrong (OpenAI support is beta)
+about: A request to Anthropic or OpenAI failed or returned something wrong
 title: "[provider] "
 labels: provider
 ---
 
-**Provider** (`AI provider` in Settings): Anthropic (Claude) / OpenAI (beta)
+**Provider** (`AI provider` in Settings): Anthropic (Claude) / OpenAI
 
 **Model and mode** (for example `gpt-6.1-terra`, `RP`):
 
