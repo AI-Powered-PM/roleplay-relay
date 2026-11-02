@@ -15,28 +15,62 @@ chat text, settings or keys, and the app never downloads or installs anything by
 
 Use at your own risk. No tool can guarantee your game account won't be actioned. You are responsible for every message sent from your account.
 
-See `CLAUDE.md` for the full spec and `docs/USER_GUIDE.md` for the player guide.
+## Download and install
+
+**Requirements**
+
+- Windows 10 or 11 (64-bit).
+- Your own Anthropic or OpenAI API key, with credits on that account.
+- For World of Warcraft: windowed or borderless-windowed mode (exclusive fullscreen hides the overlay).
+
+You do not need Rust, Node.js or any developer tools. Those are only for building from source (see
+below). The installer adds Microsoft Edge WebView2 by itself if it is missing (it needs internet
+during install).
+
+**Steps**
+
+1. Open <https://github.com/AI-Powered-PM/roleplay-relay/releases/latest>.
+2. Under `Assets`, download `Roleplay.Relay_<version>_x64-setup.exe`.
+3. Optional: check the file. In PowerShell run
+   `Get-FileHash .\Roleplay.Relay_<version>_x64-setup.exe` and compare the result with the SHA-256
+   in the release notes.
+4. Run the installer. The installer is not code-signed, so Windows SmartScreen shows
+   "Windows protected your PC". Click `More info`, then `Run anyway`.
+
+Next: follow the [User Guide](docs/USER_GUIDE.md): add your API key, pick your language, set up the game.
+
+What changed in each version: <https://github.com/AI-Powered-PM/roleplay-relay/releases>.
 
 ## Supported games
 
 - World of Warcraft (profile `wow`).
 
-A game profile (`src-tauri/src/game.rs`) controls the chat limit (255 characters), the most chat
-messages one reply may be split into (4), and the characters stripped from outgoing text (`|`).
+The app knows each game's chat limit (255 characters for WoW) and splits long replies.
 Everything else in the app is game-agnostic.
 
-Status: **Milestone 5 (Polish)** — all MVP flows, live-configurable hotkeys, autostart, per-mode
-model settings, size-rotating logs, NSIS installer. The Settings window has a status banner, a
-`Test key` button, an overlay preview and a sticky Save bar (see `docs/USER_GUIDE.md` section 8).
+## Where data lives
 
-## Prerequisites (Windows 10/11 x64)
+Runtime files are in `%APPDATA%\RoleplayRelay\` (settings, prompts, characters, logs).
+API keys are **not** there: each provider has its own entry in Windows Credential Manager, with
+target names `anthropic-api-key.RoleplayRelay` and `openai-api-key.RoleplayRelay`.
+
+## Building from source (developers)
+
+Players do not need this section. Use the installer above.
+
+See `CLAUDE.md` for the full spec. A game profile (`src-tauri/src/game.rs`) controls the chat limit
+(255 characters), the most chat messages one reply may be split into (4), and the characters
+stripped from outgoing text (`|`).
+
+### Prerequisites (Windows 10/11 x64)
 
 - Rust (stable, MSVC toolchain): <https://rustup.rs>
 - Visual Studio Build Tools with the "Desktop development with C++" workload
 - Node.js LTS (npm included)
-- Microsoft Edge WebView2 Runtime (already present on Windows 11 and current Windows 10)
+- Microsoft Edge WebView2 Runtime (already present on Windows 11 and current Windows 10; it matters only for
+  `npm run tauri dev` on an old Windows 10)
 
-## Build and run
+### Build and run
 
 ```bash
 npm install
@@ -44,10 +78,11 @@ npm run tauri dev       # development run; the app starts hidden in the tray
 npm run tauri build     # release build + NSIS installer
 ```
 
-The installer is written to `src-tauri/target/release/bundle/nsis/` (`Roleplay Relay_0.2.0_x64-setup.exe`).
+The installer is written to `src-tauri/target/release/bundle/nsis/` (`Roleplay Relay_<version>_x64-setup.exe`;
+GitHub shows the uploaded file as `Roleplay.Relay_<version>_x64-setup.exe`).
 The release build has devtools off and starts hidden in the tray.
 
-## Tests
+### Tests
 
 ```bash
 cd src-tauri && cargo test    # unit tests + the forbidden-API guard (tests/forbidden_apis.rs)
@@ -61,7 +96,7 @@ temperature fallback). Nothing in the tests calls the real API.
 `tests/forbidden_apis.rs` fails if any game-interaction identifier (input simulation, hooks,
 process access, window lookup) appears in `src-tauri/src`. Do not weaken it.
 
-## Adding a user language
+### Adding a user language
 
 The user's language (setting `userLanguage`, dropdown `Your language`) is a static table in
 `src-tauri/src/languages.rs`. To add one, add **one entry** to `LANGUAGES` (and bump the array
@@ -86,21 +121,15 @@ When you change a bundled prompt in `resources/prompts/`, add the SHA-256 of the
 (LF line endings) to `OLD_DEFAULTS` in `src-tauri/src/prompts.rs`, so unedited copies in users'
 `%APPDATA%` are replaced on start. A test checks that every default shipped in git history is listed.
 
-## Security checks
+### Security checks
 
 ```bash
 cargo install cargo-audit     # once
 cd src-tauri && cargo audit
-npm audit
+npm audit --omit=dev
 ```
 
-## Where data lives
-
-Runtime files are in `%APPDATA%\RoleplayRelay\` (settings, prompts, characters, logs).
-API keys are **not** there: each provider has its own entry in Windows Credential Manager, with
-target names `anthropic-api-key.RoleplayRelay` and `openai-api-key.RoleplayRelay`.
-
-## Releasing
+### Releasing
 
 1. Bump the version to the same value in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and
    `package.json` (`Cargo.lock` and `package-lock.json` follow).

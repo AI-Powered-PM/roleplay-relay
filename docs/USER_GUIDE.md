@@ -34,18 +34,32 @@ Roleplay Relay is not affiliated with or endorsed by Blizzard Entertainment. Wor
 
 ## 2. Install and first run
 
-1. Run the installer (`Roleplay.Relay_0.2.0_x64-setup.exe`). It installs for your user only.
-2. Start **Roleplay Relay**. No window opens. A small icon appears in the tray.
+What you need:
+
+- Windows 10 or 11 (64-bit).
+- Your own Anthropic or OpenAI API key, with credits on that account (see section 3).
+- For World of Warcraft: windowed or borderless-windowed mode (see section 5).
+
+Steps:
+
+1. Download the installer. Open <https://github.com/AI-Powered-PM/roleplay-relay/releases/latest>.
+   Under `Assets`, download `Roleplay.Relay_<version>_x64-setup.exe` (for example
+   `Roleplay.Relay_0.2.0_x64-setup.exe`). If your browser warns about the download, choose to
+   keep the file.
+2. You need nothing else. If Windows lacks WebView2, the installer downloads it.
+3. Run the installer. The installer is not signed, so Windows shows "Windows protected your PC".
+   Click `More info`, then `Run anyway`. This is expected. The installer installs for your user only.
+4. Start **Roleplay Relay**. No window opens. A small icon appears in the tray.
    If you do not see it, click the arrow `^` next to the clock.
-3. Click the tray icon to open the menu:
+5. Click the tray icon to open the menu:
    - `Download version …` — shown at the top only when a new version is out (for example
      `Download version 0.2.0`). Click it to open the download page (see **Updates** below).
    - `Show/Hide overlay` — shows or hides the overlay (see section 6).
    - `Character` — shows `default`. More characters come later.
    - `Settings` — opens the Settings window.
    - `Quit` — closes the app.
-4. Start the app only once. If you start it again, it just opens `Settings`.
-5. Closing the Settings window does not close the app. Use `Quit` in the tray menu.
+6. Start the app only once. If you start it again, it just opens `Settings`.
+7. Closing the Settings window does not close the app. Use `Quit` in the tray menu.
 
 Start with Windows: open `Settings` and tick `Start with Windows` in the `General` section.
 The app then starts hidden in the tray every time you log in. Untick it to turn it off. If you

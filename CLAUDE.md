@@ -616,7 +616,7 @@ resources/
 docs/
   USER_GUIDE.md    # user how-to (English), see "Documentation"
 .github/workflows/ci.yml
-README.md          # what it is + build from source (English)
+README.md          # what it is, download/install, build from source (English)
 LICENSE            # MIT
 ```
 
@@ -673,8 +673,10 @@ different limit, to prove nothing hardcodes 255.
 
 Two docs, kept current as the app is built (not written once at the end):
 
-- **`README.md`** (English) — see "Publishing" for the top and bottom; then building from source:
-  prerequisites on Windows (Rust toolchain, Node LTS, WebView2, MSVC build tools), `npm install`,
+- **`README.md`** (English) — see "Publishing" for the top and bottom. After the intro, `Download and
+  install` for players (requirements, the releases link, the SmartScreen steps, a link to
+  `docs/USER_GUIDE.md`). Then building from source in a clearly marked developer section
+  (`Building from source (developers)`): prerequisites on Windows (Rust toolchain, Node LTS, WebView2, MSVC build tools), `npm install`,
   `npm run tauri dev`, `npm run tauri build`, where the installer lands, how to run tests,
   `cargo audit` / `npm audit`, how to add a user language (one entry in `languages.rs` + tests).
 - **`docs/USER_GUIDE.md`** (English, plain and simple — written for the player, not for developers;
